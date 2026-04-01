@@ -1,16 +1,14 @@
 use std::ffi::OsStr;
+use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use std::thread;
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use tokio::io::AsyncWriteExt;
-use tokio::process::Command as TokioCommand;
-use tokio::runtime::Builder;
-use tokio::time::sleep;
 
 use crate::config::{RuntimeFeatureConfig, RuntimeHookConfig};
 use crate::permissions::PermissionOverride;
@@ -172,7 +170,7 @@ impl HookRunner {
         abort_signal: Option<&HookAbortSignal>,
         reporter: Option<&mut dyn HookProgressReporter>,
     ) -> HookRunResult {
-        self.run_commands(
+        Self::run_commands(
             HookEvent::PreToolUse,
             self.config.pre_tool_use(),
             tool_name,
@@ -222,7 +220,7 @@ impl HookRunner {
         abort_signal: Option<&HookAbortSignal>,
         reporter: Option<&mut dyn HookProgressReporter>,
     ) -> HookRunResult {
-        self.run_commands(
+        Self::run_commands(
             HookEvent::PostToolUse,
             self.config.post_tool_use(),
             tool_name,
@@ -272,7 +270,7 @@ impl HookRunner {
         abort_signal: Option<&HookAbortSignal>,
         reporter: Option<&mut dyn HookProgressReporter>,
     ) -> HookRunResult {
-        self.run_commands(
+        Self::run_commands(
             HookEvent::PostToolUseFailure,
             self.config.post_tool_use_failure(),
             tool_name,
@@ -303,7 +301,6 @@ impl HookRunner {
 
     #[allow(clippy::too_many_arguments)]
     fn run_commands(
-        &self,
         event: HookEvent,
         commands: &[String],
         tool_name: &str,
@@ -675,36 +672,23 @@ impl CommandWithStdin {
         stdin: &[u8],
         abort_signal: Option<&HookAbortSignal>,
     ) -> std::io::Result<CommandExecution> {
-        let runtime = Builder::new_current_thread().enable_all().build()?;
-        let mut command =
-            TokioCommand::from(std::mem::replace(&mut self.command, Command::new("true")));
-        let stdin = stdin.to_vec();
-        let abort_signal = abort_signal.cloned();
-        runtime.block_on(async move {
-            let mut child = command.spawn()?;
-            if let Some(mut child_stdin) = child.stdin.take() {
-                child_stdin.write_all(&stdin).await?;
+        let mut child = self.command.spawn()?;
+        if let Some(mut child_stdin) = child.stdin.take() {
+            child_stdin.write_all(stdin)?;
+        }
+
+        loop {
+            if abort_signal.is_some_and(HookAbortSignal::is_aborted) {
+                let _ = child.kill();
+                let _ = child.wait_with_output();
+                return Ok(CommandExecution::Cancelled);
             }
 
-            loop {
-                if abort_signal
-                    .as_ref()
-                    .is_some_and(HookAbortSignal::is_aborted)
-                {
-                    let _ = child.start_kill();
-                    let _ = child.wait().await;
-                    return Ok(CommandExecution::Cancelled);
-                }
-
-                if let Some(status) = child.try_wait()? {
-                    let output = child.wait_with_output().await?;
-                    debug_assert_eq!(output.status.code(), status.code());
-                    return Ok(CommandExecution::Finished(output));
-                }
-
-                sleep(Duration::from_millis(20)).await;
+            match child.try_wait()? {
+                Some(_) => return child.wait_with_output().map(CommandExecution::Finished),
+                None => thread::sleep(Duration::from_millis(20)),
             }
-        })
+        }
     }
 }
 

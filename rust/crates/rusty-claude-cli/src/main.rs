@@ -1923,14 +1923,15 @@ fn build_runtime(
 ) -> Result<ConversationRuntime<AnthropicRuntimeClient, CliToolExecutor>, Box<dyn std::error::Error>>
 {
     let feature_config = build_runtime_feature_config()?;
-    Ok(ConversationRuntime::new_with_features(
+    let runtime = ConversationRuntime::new_with_features(
         session,
         AnthropicRuntimeClient::new(model, enable_tools, emit_output, allowed_tools.clone())?,
         CliToolExecutor::new(allowed_tools, emit_output),
         permission_policy(permission_mode, &feature_config),
         system_prompt,
-        &feature_config,
-    ))
+        feature_config,
+    );
+    Ok(runtime)
 }
 
 struct CliPermissionPrompter {
@@ -1953,6 +1954,9 @@ impl runtime::PermissionPrompter for CliPermissionPrompter {
         println!("  Tool             {}", request.tool_name);
         println!("  Current mode     {}", self.current_mode.as_str());
         println!("  Required mode    {}", request.required_mode.as_str());
+        if let Some(reason) = &request.reason {
+            println!("  Reason           {reason}");
+        }
         println!("  Input            {}", request.input);
         print!("Approve this tool call? [y/N]: ");
         let _ = io::stdout().flush();
@@ -2365,13 +2369,15 @@ fn format_bash_result(icon: &str, parsed: &serde_json::Value) -> String {
         .get("backgroundTaskId")
         .and_then(|value| value.as_str())
     {
-        lines[0].push_str(&format!(" backgrounded ({task_id})"));
+        use std::fmt::Write as _;
+        let _ = write!(lines[0], " backgrounded ({task_id})");
     } else if let Some(status) = parsed
         .get("returnCodeInterpretation")
         .and_then(|value| value.as_str())
         .filter(|status| !status.is_empty())
     {
-        lines[0].push_str(&format!(" {status}"));
+        use std::fmt::Write as _;
+        let _ = write!(lines[0], " {status}");
     }
 
     if let Some(stdout) = parsed.get("stdout").and_then(|value| value.as_str()) {
@@ -2393,15 +2399,15 @@ fn format_read_result(icon: &str, parsed: &serde_json::Value) -> String {
     let path = extract_tool_path(file);
     let start_line = file
         .get("startLine")
-        .and_then(|value| value.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(1);
     let num_lines = file
         .get("numLines")
-        .and_then(|value| value.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
     let total_lines = file
         .get("totalLines")
-        .and_then(|value| value.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(num_lines);
     let content = file
         .get("content")
@@ -2427,8 +2433,7 @@ fn format_write_result(icon: &str, parsed: &serde_json::Value) -> String {
     let line_count = parsed
         .get("content")
         .and_then(|value| value.as_str())
-        .map(|content| content.lines().count())
-        .unwrap_or(0);
+        .map_or(0, |content| content.lines().count());
     format!(
         "{icon} \x1b[1;32m✏️ {} {path}\x1b[0m \x1b[2m({line_count} lines)\x1b[0m",
         if kind == "create" { "Wrote" } else { "Updated" },
@@ -2459,7 +2464,7 @@ fn format_edit_result(icon: &str, parsed: &serde_json::Value) -> String {
     let path = extract_tool_path(parsed);
     let suffix = if parsed
         .get("replaceAll")
-        .and_then(|value| value.as_bool())
+        .and_then(serde_json::Value::as_bool)
         .unwrap_or(false)
     {
         " (replace all)"
@@ -2487,7 +2492,7 @@ fn format_edit_result(icon: &str, parsed: &serde_json::Value) -> String {
 fn format_glob_result(icon: &str, parsed: &serde_json::Value) -> String {
     let num_files = parsed
         .get("numFiles")
-        .and_then(|value| value.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
     let filenames = parsed
         .get("filenames")
@@ -2511,11 +2516,11 @@ fn format_glob_result(icon: &str, parsed: &serde_json::Value) -> String {
 fn format_grep_result(icon: &str, parsed: &serde_json::Value) -> String {
     let num_matches = parsed
         .get("numMatches")
-        .and_then(|value| value.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
     let num_files = parsed
         .get("numFiles")
-        .and_then(|value| value.as_u64())
+        .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
     let content = parsed
         .get("content")

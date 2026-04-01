@@ -286,7 +286,7 @@ impl TerminalRenderer {
     ) {
         match event {
             Event::Start(Tag::Heading { level, .. }) => {
-                self.start_heading(state, level as u8, output)
+                Self::start_heading(state, level as u8, output);
             }
             Event::End(TagEnd::Paragraph) => output.push_str("\n\n"),
             Event::Start(Tag::BlockQuote(..)) => self.start_quote(state, output),
@@ -426,7 +426,7 @@ impl TerminalRenderer {
         }
     }
 
-    fn start_heading(&self, state: &mut RenderState, level: u8, output: &mut String) {
+    fn start_heading(state: &mut RenderState, level: u8, output: &mut String) {
         state.heading_level = Some(level);
         if !output.is_empty() {
             output.push('\n');
