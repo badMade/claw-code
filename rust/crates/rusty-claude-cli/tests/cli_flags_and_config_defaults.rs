@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use runtime::Session;
+use serde_json::Value;
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -33,6 +34,64 @@ fn status_command_applies_model_and_permission_mode_flags() {
     assert!(stdout.contains("Status"));
     assert!(stdout.contains("Model            claude-sonnet-4-6"));
     assert!(stdout.contains("Permission mode  read-only"));
+
+    fs::remove_dir_all(temp_dir).expect("cleanup temp dir");
+}
+
+#[test]
+fn status_command_emits_structured_json_when_requested() {
+    // given
+    let temp_dir = unique_temp_dir("status-json");
+    fs::create_dir_all(&temp_dir).expect("temp dir should exist");
+
+    // when
+    let output = Command::new(env!("CARGO_BIN_EXE_claw"))
+        .current_dir(&temp_dir)
+        .args([
+            "--model",
+            "sonnet",
+            "--permission-mode",
+            "read-only",
+            "--output-format",
+            "json",
+            "status",
+        ])
+        .output()
+        .expect("claw should launch");
+
+    // then
+    assert_success(&output);
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
+    let parsed: Value = serde_json::from_str(stdout.trim()).expect("status output should be json");
+    assert_eq!(parsed["kind"], "status");
+    assert_eq!(parsed["model"], "claude-sonnet-4-6");
+    assert_eq!(parsed["permission_mode"], "read-only");
+    assert_eq!(parsed["workspace"]["session"], "live-repl");
+    assert!(parsed["sandbox"].is_object());
+
+    fs::remove_dir_all(temp_dir).expect("cleanup temp dir");
+}
+
+#[test]
+fn sandbox_command_emits_structured_json_when_requested() {
+    // given
+    let temp_dir = unique_temp_dir("sandbox-json");
+    fs::create_dir_all(&temp_dir).expect("temp dir should exist");
+
+    // when
+    let output = Command::new(env!("CARGO_BIN_EXE_claw"))
+        .current_dir(&temp_dir)
+        .args(["--output-format", "json", "sandbox"])
+        .output()
+        .expect("claw should launch");
+
+    // then
+    assert_success(&output);
+    let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
+    let parsed: Value = serde_json::from_str(stdout.trim()).expect("sandbox output should be json");
+    assert_eq!(parsed["kind"], "sandbox");
+    assert!(parsed["sandbox"].is_object());
+    assert!(parsed["sandbox"]["requested"].is_object());
 
     fs::remove_dir_all(temp_dir).expect("cleanup temp dir");
 }
