@@ -27,7 +27,7 @@ cargo test --workspace
 cargo build --release -p rusty-claude-cli
 ```
 
-Run all three checks (`fmt`, `clippy`, `test`) before pushing. CI enforces them on `main`, `claude/**`, and PR branches.
+Run all three checks (`fmt`, `clippy`, `test`) before pushing. CI runs them for `main`, `claude/**`, and PR branches when changes match the Rust workflow's configured paths.
 
 ### Running a single crate's tests
 ```sh
