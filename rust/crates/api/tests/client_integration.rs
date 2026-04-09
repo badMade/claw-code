@@ -106,11 +106,11 @@ async fn send_message_posts_json_and_parses_response() {
 #[tokio::test]
 async fn send_message_blocks_oversized_requests_before_the_http_call() {
     let state = Arc::new(Mutex::new(Vec::<CapturedRequest>::new()));
-    let server = spawn_server(
-        state.clone(),
-        vec![http_response("200 OK", "application/json", "{}")],
-    )
-    .await;
+    // The preflight calls count_tokens first.  Return a token count large
+    // enough that input_tokens + max_tokens exceeds the 200k context window.
+    let count_tokens_resp =
+        http_response("200 OK", "application/json", r#"{"input_tokens":200000}"#);
+    let server = spawn_server(state.clone(), vec![count_tokens_resp]).await;
 
     let client = AnthropicClient::new("test-key").with_base_url(server.base_url());
     let error = client
@@ -132,9 +132,16 @@ async fn send_message_blocks_oversized_requests_before_the_http_call() {
         .expect_err("oversized request should fail local context-window preflight");
 
     assert!(matches!(error, ApiError::ContextWindowExceeded { .. }));
+    // Only the count_tokens call should have been made — no actual send_message request.
+    let requests = state.lock().await;
+    assert_eq!(
+        requests.len(),
+        1,
+        "only the count_tokens preflight should hit the server"
+    );
     assert!(
-        state.lock().await.is_empty(),
-        "preflight failure should avoid any upstream HTTP request"
+        requests[0].path.contains("count_tokens"),
+        "the single request should be the count_tokens call"
     );
 }
 
