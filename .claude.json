@@ -1,5 +1,8 @@
 {
   "permissions": {
-    "defaultMode": "dontAsk"
+    "defaultMode": "allowEdits"
+  },
+  "settings": {
+    "cwd": "rust"
   }
 }

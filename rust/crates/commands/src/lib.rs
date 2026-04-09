@@ -1820,15 +1820,6 @@ fn slash_command_category(name: &str) -> &'static str {
         | "exit" | "summary" | "tag" | "thinkback" | "copy" | "share" | "feedback" | "rewind"
         | "pin" | "unpin" | "bookmarks" | "context" | "files" | "focus" | "unfocus" | "retry"
         | "stop" | "undo" => "Session",
-        "diff" | "commit" | "pr" | "issue" | "branch" | "blame" | "log" | "git" | "stash"
-        | "init" | "export" | "plan" | "review" | "security-review" | "bughunter" | "ultraplan"
-        | "teleport" | "refactor" | "fix" | "autofix" | "explain" | "docs" | "perf" | "search"
-        | "references" | "definition" | "hover" | "symbols" | "map" | "web" | "image"
-        | "screenshot" | "paste" | "listen" | "speak" | "test" | "lint" | "build" | "run"
-        | "format" | "parallel" | "multi" | "macro" | "alias" | "templates" | "migrate"
-        | "benchmark" | "cron" | "agent" | "subagent" | "agents" | "skills" | "team" | "plugin"
-        | "mcp" | "hooks" | "tasks" | "advisor" | "insights" | "release-notes" | "chat"
-        | "approve" | "deny" | "allowed-tools" | "add-dir" => "Tools",
         "model" | "permissions" | "config" | "memory" | "theme" | "vim" | "voice" | "color"
         | "effort" | "fast" | "brief" | "output-style" | "keybindings" | "privacy-settings"
         | "stickers" | "language" | "profile" | "max-tokens" | "temperature" | "system-prompt"
@@ -2358,7 +2349,8 @@ pub fn resolve_skill_invocation(
                         .map(|s| s.name.clone())
                         .collect();
                     if !names.is_empty() {
-                        message.push_str(&format!("\n  Available skills: {}", names.join(", ")));
+                        use std::fmt::Write;
+                        let _ = write!(message, "\n  Available skills: {}", names.join(", "));
                     }
                 }
                 message.push_str("\n  Usage: /skills [list|install <path>|help|<skill> [args]]");

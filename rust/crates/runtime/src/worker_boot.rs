@@ -576,13 +576,6 @@ fn push_event(
 /// This is the file-based observability surface: external observers (clawhip, orchestrators)
 /// poll this file instead of requiring an HTTP route on the opencode binary.
 fn emit_state_file(worker: &Worker) {
-    let state_dir = std::path::Path::new(&worker.cwd).join(".claw");
-    if let Err(_) = std::fs::create_dir_all(&state_dir) {
-        return;
-    }
-    let state_path = state_dir.join("worker-state.json");
-    let tmp_path = state_dir.join("worker-state.json.tmp");
-
     #[derive(serde::Serialize)]
     struct StateSnapshot<'a> {
         worker_id: &'a str,
@@ -596,6 +589,13 @@ fn emit_state_file(worker: &Worker) {
         /// stalled workers without computing epoch deltas.
         seconds_since_update: u64,
     }
+
+    let state_dir = std::path::Path::new(&worker.cwd).join(".claw");
+    if std::fs::create_dir_all(&state_dir).is_err() {
+        return;
+    }
+    let state_path = state_dir.join("worker-state.json");
+    let tmp_path = state_dir.join("worker-state.json.tmp");
 
     let now = now_secs();
     let snapshot = StateSnapshot {
@@ -1105,7 +1105,13 @@ mod tests {
 
     #[test]
     fn emit_state_file_writes_worker_status_on_transition() {
-        let cwd_path = std::env::temp_dir().join(format!("claw-state-test-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos()));
+        let cwd_path = std::env::temp_dir().join(format!(
+            "claw-state-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
         std::fs::create_dir_all(&cwd_path).expect("test dir should create");
         let cwd = cwd_path.to_str().expect("test path should be utf8");
         let registry = WorkerRegistry::new();
@@ -1113,11 +1119,19 @@ mod tests {
 
         // After create the worker is Spawning — state file should exist
         let state_path = cwd_path.join(".claw").join("worker-state.json");
-        assert!(state_path.exists(), "state file should exist after worker creation");
+        assert!(
+            state_path.exists(),
+            "state file should exist after worker creation"
+        );
 
         let raw = std::fs::read_to_string(&state_path).expect("state file should be readable");
-        let value: serde_json::Value = serde_json::from_str(&raw).expect("state file should be valid JSON");
-        assert_eq!(value["status"].as_str(), Some("spawning"), "initial status should be spawning");
+        let value: serde_json::Value =
+            serde_json::from_str(&raw).expect("state file should be valid JSON");
+        assert_eq!(
+            value["status"].as_str(),
+            Some("spawning"),
+            "initial status should be spawning"
+        );
         assert_eq!(value["is_ready"].as_bool(), Some(false));
 
         // Transition to ReadyForPrompt by observing trust-cleared text
@@ -1125,14 +1139,20 @@ mod tests {
             .observe(&worker.worker_id, "Ready for input\n>")
             .expect("observe ready should succeed");
 
-        let raw = std::fs::read_to_string(&state_path).expect("state file should be readable after observe");
-        let value: serde_json::Value = serde_json::from_str(&raw).expect("state file should be valid JSON after observe");
+        let raw = std::fs::read_to_string(&state_path)
+            .expect("state file should be readable after observe");
+        let value: serde_json::Value =
+            serde_json::from_str(&raw).expect("state file should be valid JSON after observe");
         assert_eq!(
             value["status"].as_str(),
             Some("ready_for_prompt"),
             "status should be ready_for_prompt after observe"
         );
-        assert_eq!(value["is_ready"].as_bool(), Some(true), "is_ready should be true when ReadyForPrompt");
+        assert_eq!(
+            value["is_ready"].as_bool(),
+            Some(true),
+            "is_ready should be true when ReadyForPrompt"
+        );
     }
 
     #[test]
