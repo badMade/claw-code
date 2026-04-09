@@ -16,6 +16,10 @@ on:
       - PARITY.md
       - PHILOSOPHY.md
       - ROADMAP.md
+      - CLAUDE.md
+      - .claude.json
+      - .claude/**
+      - .gitignore
       - docs/**
       - rust/**
   pull_request:
@@ -30,6 +34,10 @@ on:
       - PARITY.md
       - PHILOSOPHY.md
       - ROADMAP.md
+      - CLAUDE.md
+      - .claude.json
+      - .claude/**
+      - .gitignore
       - docs/**
       - rust/**
   workflow_dispatch:

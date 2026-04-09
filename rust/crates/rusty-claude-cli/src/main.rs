@@ -7745,7 +7745,7 @@ mod tests {
         render_prompt_history_report, render_repl_help, render_resume_usage,
         render_session_markdown, resolve_model_alias, resolve_model_alias_with_config,
         resolve_repl_model, resolve_session_reference, response_to_events,
-        resume_supported_slash_commands, run_resume_command, short_tool_id,
+        resume_supported_slash_commands, run_resume_command, sessions_dir, short_tool_id,
         slash_command_completion_candidates_with_sessions, status_context,
         summarize_tool_payload_for_markdown, validate_no_args, write_mcp_server_fixture, CliAction,
         CliOutputFormat, CliToolExecutor, GitWorkspaceSummary, InternalPromptProgressEvent,
@@ -9027,7 +9027,7 @@ mod tests {
             parse_args(&["help".to_string(), "me".to_string(), "debug".to_string()])
                 .expect("prompt shorthand should still work"),
             CliAction::Prompt {
-                prompt: "$help overview".to_string(),
+                prompt: "help me debug".to_string(),
                 model: DEFAULT_MODEL.to_string(),
                 output_format: CliOutputFormat::Text,
                 allowed_tools: None,
@@ -9344,7 +9344,9 @@ mod tests {
         assert!(help.contains("/diff"));
         assert!(help.contains("/version"));
         assert!(help.contains("/export [file]"));
-        assert!(help.contains("/session [list|switch <session-id>|fork [branch-name]]"));
+        assert!(help.contains(
+            "/session [list|switch <session-id>|fork [branch-name]|delete <session-id> [--force]]"
+        ));
         assert!(help.contains(
             "/plugin [list|install <path>|enable <name>|disable <name>|uninstall <id>|update <id>]"
         ));
@@ -9962,13 +9964,9 @@ UU conflicted.rs",
         let handle = create_managed_session_handle("session-alpha").expect("jsonl handle");
         assert!(handle.path.ends_with("session-alpha.jsonl"));
 
-        let legacy_path = workspace.join(".claw/sessions/legacy.json");
-        std::fs::create_dir_all(
-            legacy_path
-                .parent()
-                .expect("legacy path should have parent directory"),
-        )
-        .expect("session dir should exist");
+        let legacy_path = sessions_dir()
+            .expect("sessions dir should resolve")
+            .join("legacy.json");
         Session::new()
             .with_persistence_path(legacy_path.clone())
             .save_to_path(&legacy_path)
