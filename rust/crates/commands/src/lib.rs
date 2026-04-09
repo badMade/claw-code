@@ -3290,15 +3290,15 @@ fn render_agents_report_json(cwd: &Path, agents: &[AgentSummary]) -> Value {
 }
 
 fn agent_detail(agent: &AgentSummary) -> String {
-    let mut parts = vec![agent.name.clone()];
+    let mut parts = vec![agent.name.as_str()];
     if let Some(description) = &agent.description {
-        parts.push(description.clone());
+        parts.push(description.as_str());
     }
     if let Some(model) = &agent.model {
-        parts.push(model.clone());
+        parts.push(model.as_str());
     }
     if let Some(reasoning) = &agent.reasoning_effort {
-        parts.push(reasoning.clone());
+        parts.push(reasoning.as_str());
     }
     parts.join(" · ")
 }
@@ -3333,12 +3333,12 @@ fn render_skills_report(skills: &[SkillSummary]) -> String {
 
         lines.push(format!("{}:", scope.label()));
         for skill in group {
-            let mut parts = vec![skill.name.clone()];
+            let mut parts = vec![skill.name.as_str()];
             if let Some(description) = &skill.description {
-                parts.push(description.clone());
+                parts.push(description.as_str());
             }
             if let Some(detail) = skill.origin.detail_label() {
-                parts.push(detail.to_string());
+                parts.push(detail);
             }
             let detail = parts.join(" · ");
             match skill.shadowed_by {
