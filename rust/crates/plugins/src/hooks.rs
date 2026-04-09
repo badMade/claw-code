@@ -293,7 +293,7 @@ fn shell_command(command: &str) -> CommandWithStdin {
         CommandWithStdin::new(command_builder)
     } else {
         let mut command_builder = Command::new("sh");
-        command_builder.arg("-c").arg(command);
+        command_builder.arg("-lc").arg(command);
         CommandWithStdin::new(command_builder)
     };
 
