@@ -74,12 +74,15 @@ impl SessionStore {
         &self.workspace_root
     }
 
-    pub fn create_handle(&self, session_id: &str) -> SessionHandle {
+    pub fn create_handle(&self, session_id: &str) -> Result<SessionHandle, SessionControlError> {
+        if !is_valid_session_id(session_id) {
+            return Err(SessionControlError::Format(format!("Invalid session ID: {session_id}")));
+        }
         let id = session_id.to_string();
         let path = self
             .sessions_root
             .join(format!("{id}.{PRIMARY_SESSION_EXTENSION}"));
-        SessionHandle { id, path }
+        Ok(SessionHandle { id, path })
     }
 
     pub fn resolve_reference(&self, reference: &str) -> Result<SessionHandle, SessionControlError> {
@@ -222,7 +225,7 @@ impl SessionStore {
     ) -> Result<ForkedManagedSession, SessionControlError> {
         let parent_session_id = session.session_id.clone();
         let forked = session.fork(branch_name);
-        let handle = self.create_handle(&forked.session_id);
+        let handle = self.create_handle(&forked.session_id)?;
         let branch_name = forked
             .fork
             .as_ref()
@@ -342,10 +345,27 @@ pub fn create_managed_session_handle_for(
     base_dir: impl AsRef<Path>,
     session_id: &str,
 ) -> Result<SessionHandle, SessionControlError> {
+    if !is_valid_session_id(session_id) {
+        return Err(SessionControlError::Format(format!("Invalid session ID: {session_id}")));
+    }
     let id = session_id.to_string();
     let path =
         managed_sessions_dir_for(base_dir)?.join(format!("{id}.{PRIMARY_SESSION_EXTENSION}"));
     Ok(SessionHandle { id, path })
+}
+
+#[must_use]
+pub fn is_valid_session_id(session_id: &str) -> bool {
+    if session_id.contains('/') || session_id.contains('\\') {
+        return false;
+    }
+    if session_id == "." || session_id == ".." {
+        return false;
+    }
+    if session_id.contains("..") {
+        return false;
+    }
+    true
 }
 
 pub fn resolve_session_reference(reference: &str) -> Result<SessionHandle, SessionControlError> {
@@ -712,7 +732,7 @@ mod tests {
         session
             .push_user_text(text)
             .expect("session message should save");
-        let handle = store.create_handle(&session.session_id);
+        let handle = store.create_handle(&session.session_id).expect("handle should create");
         let session = session.with_persistence_path(handle.path.clone());
         session
             .save_to_path(&handle.path)
