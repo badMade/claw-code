@@ -233,7 +233,7 @@ pub fn build_linux_sandbox_command(
         args.push("--net".to_string());
     }
     args.push("sh".to_string());
-    args.push("-lc".to_string());
+    args.push("-c".to_string());
     args.push(command.to_string());
 
     let sandbox_home = cwd.join(".sandbox-home");

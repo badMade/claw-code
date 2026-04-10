@@ -7958,15 +7958,19 @@ mod tests {
     }
 
     fn git(args: &[&str], cwd: &Path) {
-        let status = Command::new("git")
+        let output = Command::new("git")
             .args(args)
             .current_dir(cwd)
-            .status()
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
             .expect("git command should run");
         assert!(
-            status.success(),
-            "git command failed: git {}",
-            args.join(" ")
+            output.status.success(),
+            "git command failed: git {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
         );
     }
 

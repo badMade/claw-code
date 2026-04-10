@@ -4801,7 +4801,7 @@ fn resolve_repl_runtime(language: &str) -> Result<ReplRuntime, String> {
         "sh" | "shell" | "bash" => Ok(ReplRuntime {
             program: detect_first_command(&["bash", "sh"])
                 .ok_or_else(|| String::from("shell runtime not found"))?,
-            args: &["-lc"],
+            args: &["-c"],
         }),
         other => Err(format!("unsupported REPL language: {other}")),
     }
@@ -5150,7 +5150,7 @@ fn detect_powershell_shell() -> std::io::Result<&'static str> {
 
 fn command_exists(command: &str) -> bool {
     std::process::Command::new("sh")
-        .arg("-lc")
+        .arg("-c")
         .arg(format!("command -v {command} >/dev/null 2>&1"))
         .status()
         .map(|status| status.success())
