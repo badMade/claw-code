@@ -205,7 +205,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             base_commit,
         } => {
             run_stale_base_preflight(base_commit.as_deref());
-            let stdin_context = read_piped_stdin();
+            // Only read piped stdin when no CLI prompt was given, so that
+            // stdin remains available for interactive permission prompts.
+            let stdin_context = if prompt.is_empty() {
+                read_piped_stdin()
+            } else {
+                None
+            };
             let effective_prompt = merge_prompt_with_stdin(&prompt, stdin_context.as_deref());
             LiveCli::new(model, true, allowed_tools, permission_mode)?.run_turn_with_output(
                 &effective_prompt,
