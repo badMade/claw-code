@@ -201,7 +201,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             output_format,
             allowed_tools,
             permission_mode,
-            compact: _,
+            compact,
             base_commit,
         } => {
             run_stale_base_preflight(base_commit.as_deref());
@@ -210,7 +210,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             LiveCli::new(model, true, allowed_tools, permission_mode)?.run_turn_with_output(
                 &effective_prompt,
                 output_format,
-                false,
+                compact,
             )?;
         }
         CliAction::Login { output_format } => run_login(output_format)?,
