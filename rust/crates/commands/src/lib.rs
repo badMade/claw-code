@@ -3290,16 +3290,15 @@ fn render_agents_report_json(cwd: &Path, agents: &[AgentSummary]) -> Value {
 }
 
 fn agent_detail(agent: &AgentSummary) -> String {
-    let mut parts = vec![agent.name.as_str()];
-    if let Some(description) = &agent.description {
-        parts.push(description.as_str());
-    }
-    if let Some(model) = &agent.model {
-        parts.push(model.as_str());
-    }
-    if let Some(reasoning) = &agent.reasoning_effort {
-        parts.push(reasoning.as_str());
-    }
+    let parts: Vec<&str> = [
+        Some(agent.name.as_str()),
+        agent.description.as_deref(),
+        agent.model.as_deref(),
+        agent.reasoning_effort.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     parts.join(" · ")
 }
 
