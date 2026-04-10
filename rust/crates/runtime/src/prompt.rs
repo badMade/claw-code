@@ -253,7 +253,6 @@ fn read_git_status(cwd: &Path) -> Option<String> {
     }
 }
 
-
 fn read_git_diff(cwd: &Path) -> Option<String> {
     let mut sections = Vec::new();
 
@@ -549,6 +548,22 @@ mod tests {
         }
     }
 
+    fn git(cwd: &Path, args: &[&str]) {
+        let output = std::process::Command::new("git")
+            .args(args)
+            .current_dir(cwd)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
+            .unwrap_or_else(|e| panic!("git {args:?} failed to execute: {e}"));
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
     #[test]
     fn discovers_instruction_files_from_ancestor_chain() {
         let root = temp_dir();
@@ -640,11 +655,7 @@ mod tests {
         ensure_valid_cwd();
         let root = temp_dir();
         fs::create_dir_all(&root).expect("root dir");
-        std::process::Command::new("git")
-            .args(["init", "--quiet"])
-            .current_dir(&root)
-            .status()
-            .expect("git init should run");
+        git(&root, &["init", "--quiet"]);
         fs::write(root.join("CLAUDE.md"), "rules").expect("write instructions");
         fs::write(root.join("tracked.txt"), "hello").expect("write tracked file");
 
@@ -667,44 +678,20 @@ mod tests {
         ensure_valid_cwd();
         let root = temp_dir();
         fs::create_dir_all(&root).expect("root dir");
-        std::process::Command::new("git")
-            .args(["init", "--quiet", "-b", "main"])
-            .current_dir(&root)
-            .status()
-            .expect("git init should run");
-        std::process::Command::new("git")
-            .args(["config", "user.email", "tests@example.com"])
-            .current_dir(&root)
-            .status()
-            .expect("git config email should run");
-        std::process::Command::new("git")
-            .args(["config", "user.name", "Runtime Prompt Tests"])
-            .current_dir(&root)
-            .status()
-            .expect("git config name should run");
+        git(&root, &["init", "--quiet", "-b", "main"]);
+        git(&root, &["config", "user.email", "tests@example.com"]);
+        git(&root, &["config", "user.name", "Runtime Prompt Tests"]);
         for (file, message) in [
             ("a.txt", "first commit"),
             ("b.txt", "second commit"),
             ("c.txt", "third commit"),
         ] {
             fs::write(root.join(file), "x\n").expect("write commit file");
-            std::process::Command::new("git")
-                .args(["add", file])
-                .current_dir(&root)
-                .status()
-                .expect("git add should run");
-            std::process::Command::new("git")
-                .args(["commit", "-m", message, "--quiet"])
-                .current_dir(&root)
-                .status()
-                .expect("git commit should run");
+            git(&root, &["add", file]);
+            git(&root, &["commit", "-m", message, "--quiet"]);
         }
         fs::write(root.join("d.txt"), "staged\n").expect("write staged file");
-        std::process::Command::new("git")
-            .args(["add", "d.txt"])
-            .current_dir(&root)
-            .status()
-            .expect("git add staged should run");
+        git(&root, &["add", "d.txt"]);
 
         // when: discovering project context with git auto-include
         let context =
@@ -715,8 +702,16 @@ mod tests {
             .render();
 
         // then: branch, recent commits and staged files are present in context
-        let gc = context.git_context.as_ref().expect("git context should be present");
-        let commits: String = gc.recent_commits.iter().map(|c| c.subject.clone()).collect::<Vec<_>>().join("\n");
+        let gc = context
+            .git_context
+            .as_ref()
+            .expect("git context should be present");
+        let commits: String = gc
+            .recent_commits
+            .iter()
+            .map(|c| c.subject.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(commits.contains("first commit"));
         assert!(commits.contains("second commit"));
         assert!(commits.contains("third commit"));
@@ -740,32 +735,12 @@ mod tests {
         ensure_valid_cwd();
         let root = temp_dir();
         fs::create_dir_all(&root).expect("root dir");
-        std::process::Command::new("git")
-            .args(["init", "--quiet"])
-            .current_dir(&root)
-            .status()
-            .expect("git init should run");
-        std::process::Command::new("git")
-            .args(["config", "user.email", "tests@example.com"])
-            .current_dir(&root)
-            .status()
-            .expect("git config email should run");
-        std::process::Command::new("git")
-            .args(["config", "user.name", "Runtime Prompt Tests"])
-            .current_dir(&root)
-            .status()
-            .expect("git config name should run");
+        git(&root, &["init", "--quiet"]);
+        git(&root, &["config", "user.email", "tests@example.com"]);
+        git(&root, &["config", "user.name", "Runtime Prompt Tests"]);
         fs::write(root.join("tracked.txt"), "hello\n").expect("write tracked file");
-        std::process::Command::new("git")
-            .args(["add", "tracked.txt"])
-            .current_dir(&root)
-            .status()
-            .expect("git add should run");
-        std::process::Command::new("git")
-            .args(["commit", "-m", "init", "--quiet"])
-            .current_dir(&root)
-            .status()
-            .expect("git commit should run");
+        git(&root, &["add", "tracked.txt"]);
+        git(&root, &["commit", "-m", "init", "--quiet"]);
         fs::write(root.join("tracked.txt"), "hello\nworld\n").expect("rewrite tracked file");
 
         let context =

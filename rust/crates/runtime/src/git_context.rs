@@ -313,12 +313,18 @@ mod tests {
     }
 
     fn git(cwd: &std::path::Path, args: &[&str]) {
-        let status = Command::new("git")
+        let output = Command::new("git")
             .args(args)
             .current_dir(cwd)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_TERMINAL_PROMPT", "0")
             .output()
-            .unwrap_or_else(|_| panic!("git {args:?} should run"))
-            .status;
-        assert!(status.success(), "git {args:?} failed");
+            .unwrap_or_else(|_| panic!("git {args:?} should run"));
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 }

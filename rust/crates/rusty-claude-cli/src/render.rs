@@ -639,10 +639,11 @@ fn apply_code_block_background(line: &str) -> String {
 /// fence markers of equal or greater length are wrapped with a longer fence.
 ///
 /// LLMs frequently emit triple-backtick code blocks that contain triple-backtick
-/// examples.  CommonMark (and pulldown-cmark) treats the inner marker as the
+/// examples.  `CommonMark` (and pulldown-cmark) treats the inner marker as the
 /// closing fence, breaking the render.  This function detects the situation and
 /// upgrades the outer fence to use enough backticks (or tildes) that the inner
 /// markers become ordinary content.
+#[allow(clippy::too_many_lines)]
 fn normalize_nested_fences(markdown: &str) -> String {
     // A fence line is either "labeled" (has an info string ⇒ always an opener)
     // or "bare" (no info string ⇒ could be opener or closer).
@@ -651,6 +652,17 @@ fn normalize_nested_fences(markdown: &str) -> String {
         char: char,
         len: usize,
         has_info: bool,
+        indent: usize,
+    }
+
+    struct StackEntry {
+        line_idx: usize,
+        fence: FenceLine,
+    }
+
+    struct Rewrite {
+        char: char,
+        new_len: usize,
         indent: usize,
     }
 
@@ -693,11 +705,6 @@ fn normalize_nested_fences(markdown: &str) -> String {
     // Second pass: pair openers with closers using a stack, recording
     // (opener_idx, closer_idx) pairs plus the max fence length found between
     // them.
-    struct StackEntry {
-        line_idx: usize,
-        fence: FenceLine,
-    }
-
     let mut stack: Vec<StackEntry> = Vec::new();
     // Paired blocks: (opener_line, closer_line, max_inner_fence_len)
     let mut pairs: Vec<(usize, usize, usize)> = Vec::new();
@@ -738,11 +745,6 @@ fn normalize_nested_fences(markdown: &str) -> String {
 
     // Determine which lines need rewriting.  A pair needs rewriting when
     // its opener length <= max inner fence length.
-    struct Rewrite {
-        char: char,
-        new_len: usize,
-        indent: usize,
-    }
     let mut rewrites: std::collections::HashMap<usize, Rewrite> = std::collections::HashMap::new();
 
     for (opener_idx, closer_idx, inner_max) in &pairs {
@@ -789,8 +791,8 @@ fn normalize_nested_fences(markdown: &str) -> String {
     let mut out = String::with_capacity(markdown.len() + rewrites.len() * 4);
     for (i, line) in lines.iter().enumerate() {
         if let Some(rw) = rewrites.get(&i) {
-            let fence_str: String = std::iter::repeat(rw.char).take(rw.new_len).collect();
-            let indent_str: String = std::iter::repeat(' ').take(rw.indent).collect();
+            let fence_str: String = std::iter::repeat_n(rw.char, rw.new_len).collect();
+            let indent_str: String = " ".repeat(rw.indent);
             // Recover the original info string (if any) and trailing newline.
             let trimmed = line.trim_end_matches('\n').trim_end_matches('\r');
             let fi = fence_info[i].as_ref().unwrap();
