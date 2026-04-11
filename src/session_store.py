@@ -16,7 +16,13 @@ class StoredSession:
 DEFAULT_SESSION_DIR = Path('.port_sessions')
 
 
+def validate_session_id(session_id: str) -> None:
+    if "/" in session_id or "\\" in session_id or ".." in session_id or session_id in (".", ".."):
+        raise ValueError(f"Invalid session ID: {session_id}")
+
+
 def save_session(session: StoredSession, directory: Path | None = None) -> Path:
+    validate_session_id(session.session_id)
     target_dir = directory or DEFAULT_SESSION_DIR
     target_dir.mkdir(parents=True, exist_ok=True)
     path = target_dir / f'{session.session_id}.json'
@@ -25,6 +31,7 @@ def save_session(session: StoredSession, directory: Path | None = None) -> Path:
 
 
 def load_session(session_id: str, directory: Path | None = None) -> StoredSession:
+    validate_session_id(session_id)
     target_dir = directory or DEFAULT_SESSION_DIR
     data = json.loads((target_dir / f'{session_id}.json').read_text())
     return StoredSession(
