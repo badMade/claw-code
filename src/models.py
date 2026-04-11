@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass, field
 
 
@@ -17,6 +18,10 @@ class PortingModule:
     responsibility: str
     source_hint: str
     status: str = 'planned'
+
+    @functools.cached_property
+    def search_text(self) -> str:
+        return f"{self.name.lower()} {self.source_hint.lower()} {self.responsibility.lower()}"
 
 
 @dataclass(frozen=True)

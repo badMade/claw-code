@@ -184,9 +184,9 @@ class PortRuntime:
 
     @staticmethod
     def _score(tokens: set[str], module: PortingModule) -> int:
-        haystacks = [module.name.lower(), module.source_hint.lower(), module.responsibility.lower()]
         score = 0
+        haystack = module.search_text
         for token in tokens:
-            if any(token in haystack for haystack in haystacks):
+            if token in haystack:
                 score += 1
         return score
