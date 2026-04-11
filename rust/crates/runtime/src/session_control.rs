@@ -75,8 +75,14 @@ impl SessionStore {
     }
 
     pub fn validate_session_id(session_id: &str) -> Result<(), SessionControlError> {
-        if session_id.contains('/') || session_id.contains('\\') || session_id.contains("..") || session_id == "." {
-            return Err(SessionControlError::Format(format!("Invalid session ID: {session_id}")));
+        if session_id.contains('/')
+            || session_id.contains('\\')
+            || session_id.contains("..")
+            || session_id == "."
+        {
+            return Err(SessionControlError::Format(format!(
+                "Invalid session ID: {session_id}"
+            )));
         }
         Ok(())
     }
@@ -721,7 +727,9 @@ mod tests {
         session
             .push_user_text(text)
             .expect("session message should save");
-        let handle = store.create_handle(&session.session_id).expect("should create handle");
+        let handle = store
+            .create_handle(&session.session_id)
+            .expect("should create handle");
         let session = session.with_persistence_path(handle.path.clone());
         session
             .save_to_path(&handle.path)
