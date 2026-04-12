@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import cached_property
 
 
 @dataclass(frozen=True)
@@ -16,7 +17,12 @@ class PortingModule:
     name: str
     responsibility: str
     source_hint: str
-    status: str = 'planned'
+    status: str = "planned"
+
+    @cached_property
+    def search_text(self) -> str:
+        # ⚡ Bolt: Cache lowercased concatenated strings to avoid redundant string allocations in routing loops
+        return f"{self.name}\0{self.source_hint}\0{self.responsibility}".lower()
 
 
 @dataclass(frozen=True)
@@ -30,7 +36,7 @@ class UsageSummary:
     input_tokens: int = 0
     output_tokens: int = 0
 
-    def add_turn(self, prompt: str, output: str) -> 'UsageSummary':
+    def add_turn(self, prompt: str, output: str) -> "UsageSummary":
         return UsageSummary(
             input_tokens=self.input_tokens + len(prompt.split()),
             output_tokens=self.output_tokens + len(output.split()),
@@ -44,6 +50,6 @@ class PortingBacklog:
 
     def summary_lines(self) -> list[str]:
         return [
-            f'- {module.name} [{module.status}] — {module.responsibility} (from {module.source_hint})'
+            f"- {module.name} [{module.status}] — {module.responsibility} (from {module.source_hint})"
             for module in self.modules
         ]
