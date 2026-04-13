@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-
+import functools
 
 @dataclass(frozen=True)
 class Subsystem:
@@ -17,6 +17,11 @@ class PortingModule:
     responsibility: str
     source_hint: str
     status: str = 'planned'
+
+    @functools.cached_property
+    def search_text(self) -> str:
+        """Cached search text to avoid redundant string allocations and lowering during routing."""
+        return f"{self.name.lower()}\0{self.source_hint.lower()}\0{self.responsibility.lower()}"
 
 
 @dataclass(frozen=True)
