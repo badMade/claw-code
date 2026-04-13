@@ -1,0 +1,3 @@
+## $(date +%Y-%m-%d) - [CLI Cursor UX Fix]
+**Learning:** This app is a Rust CLI, not a web frontend. Standard web accessibility rules (ARIA labels, DOM structure) do not apply. UX improvements here involve terminal manipulation (using `crossterm` for ANSI output, cursor hiding, colors, text alignment). Hiding the terminal cursor during a `Spinner` animation prevents the cursor from awkwardly jumping or rendering alongside spinner frames.
+**Action:** When implementing CLI UX changes that modify terminal state (like hiding a cursor), ALWAYS implement a `Drop` trait to ensure the state (like cursor visibility) is predictably restored if the process is interrupted or panics.

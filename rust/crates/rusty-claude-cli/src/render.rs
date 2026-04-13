@@ -1,7 +1,7 @@
 use std::fmt::Write as FmtWrite;
 use std::io::{self, Write};
 
-use crossterm::cursor::{MoveToColumn, RestorePosition, SavePosition};
+use crossterm::cursor::{Hide, MoveToColumn, RestorePosition, SavePosition, Show};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor, Stylize};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
@@ -47,6 +47,16 @@ impl Default for ColorTheme {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Spinner {
     frame_index: usize,
+    cursor_hidden: bool,
+}
+
+impl Drop for Spinner {
+    fn drop(&mut self) {
+        if self.cursor_hidden {
+            let mut out = io::stdout();
+            let _ = execute!(out, Show);
+        }
+    }
 }
 
 impl Spinner {
@@ -63,6 +73,10 @@ impl Spinner {
         theme: &ColorTheme,
         out: &mut impl Write,
     ) -> io::Result<()> {
+        if !self.cursor_hidden {
+            queue!(out, Hide)?;
+            self.cursor_hidden = true;
+        }
         let frame = Self::FRAMES[self.frame_index % Self::FRAMES.len()];
         self.frame_index += 1;
         queue!(
@@ -85,13 +99,15 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
+        self.cursor_hidden = false;
         execute!(
             out,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
             SetForegroundColor(theme.spinner_done),
             Print(format!("✔ {label}\n")),
-            ResetColor
+            ResetColor,
+            Show
         )?;
         out.flush()
     }
@@ -103,13 +119,15 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
+        self.cursor_hidden = false;
         execute!(
             out,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
             SetForegroundColor(theme.spinner_failed),
             Print(format!("✘ {label}\n")),
-            ResetColor
+            ResetColor,
+            Show
         )?;
         out.flush()
     }
