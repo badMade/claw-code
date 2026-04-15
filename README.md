@@ -91,3 +91,20 @@ Claw Code is built in the open alongside the broader UltraWorkers toolchain:
 
 - This repository does **not** claim ownership of the original Claude Code source material.
 - This repository is **not affiliated with, endorsed by, or maintained by Anthropic**.
+
+## Self-Healing Features
+
+This project includes robust self-healing patterns for both the deployment pipeline and the Python runtime.
+
+### CI/CD Self-Healing (.github/workflows)
+- **Automatic rollback:** Health checks ping `/health` with exponential backoff post-deploy. If they fail after 10 attempts, the deploy is rolled back automatically.
+- **LLM Auto-Remediation:** When tests fail on main CI, a `selfheal-{SHA}` branch is created. The workflow hooks into an LLM proxy to patch the code/config, tests the fix in a sandbox, and opens a PR if successful. Loop prevention ensures self-heal branches don't trigger cascading fixes.
+
+### Runtime Self-Healing (src/selfheal/)
+- **Environment Validation:** Startup scripts fail fast if Python versions, disk space, or required environment variables are missing.
+- **Config Healing (`SelfHealingConfig`):** Missing configurations are re-generated from defaults. Corrupt JSON configs are backed up and regenerated. Invalid specific fields are healed while preserving valid ones.
+- **Resilience (`@retry`, `@circuit_breaker`):** Wraps external network calls in exponential backoff retries and circuit breakers to prevent cascading thundering herd failures.
+- **Health Probes:** Automatic `/healthz` (liveness) and `/ready` (readiness) probes integrated for Flask/FastAPI to tell orchestrators when to restart the application.
+
+### Environment Variables
+- `SELFHEAL_AUTO_INSTALL=true` - Automatically installs required dependencies in CI environments to prevent CI breaking if someone forgets to `pip install`.
