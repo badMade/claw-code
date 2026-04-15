@@ -1,5 +1,5 @@
 use std::fmt::Write as FmtWrite;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
 use crossterm::cursor::{Hide, MoveToColumn, RestorePosition, SavePosition, Show};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor, Stylize};
@@ -119,7 +119,11 @@ impl Spinner {
 }
 
 impl Drop for Spinner {
-    fn drop(&mut self) {}
+    fn drop(&mut self) {
+        if io::stdout().is_terminal() {
+            let _ = execute!(io::stdout(), Show);
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
