@@ -260,17 +260,14 @@ pub fn validate_session_id(id: &str) -> Result<(), SessionControlError> {
             "Session ID cannot be empty".to_string(),
         ));
     }
-    if id.contains('/') || id.contains('\\') {
-        return Err(SessionControlError::Format(format!(
-            "Invalid session ID '{id}': cannot contain path separators"
-        )));
+
+    let mut components = Path::new(id).components();
+    match (components.next(), components.next()) {
+        (Some(std::path::Component::Normal(_)), None) => Ok(()),
+        _ => Err(SessionControlError::Format(format!(
+            "Invalid session ID '{id}': must be a single normal path component"
+        ))),
     }
-    if id == "." || id == ".." {
-        return Err(SessionControlError::Format(format!(
-            "Invalid session ID '{id}': cannot be '.' or '..'"
-        )));
-    }
-    Ok(())
 }
 
 pub const PRIMARY_SESSION_EXTENSION: &str = "jsonl";
