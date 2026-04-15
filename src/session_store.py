@@ -23,6 +23,8 @@ def validate_session_id(session_id: str) -> None:
         raise ValueError(f"Invalid session ID '{session_id}': cannot contain path separators")
     if session_id in (".", ".."):
         raise ValueError(f"Invalid session ID '{session_id}': cannot be '.' or '..'")
+    if len(session_id) >= 2 and session_id[0].isalpha() and session_id[1] == ":":
+        raise ValueError(f"Invalid session ID '{session_id}': cannot use a Windows drive prefix")
 
 
 def save_session(session: StoredSession, directory: Path | None = None) -> Path:
