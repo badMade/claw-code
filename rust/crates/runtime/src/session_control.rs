@@ -734,7 +734,9 @@ mod tests {
         session
             .push_user_text(text)
             .expect("session message should save");
-        let handle = store.create_handle(&session.session_id).expect("handle should create");
+        let handle = store
+            .create_handle(&session.session_id)
+            .expect("handle should create");
         let session = session.with_persistence_path(handle.path.clone());
         session
             .save_to_path(&handle.path)
