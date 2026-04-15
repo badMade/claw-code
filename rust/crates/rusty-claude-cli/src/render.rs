@@ -119,9 +119,7 @@ impl Spinner {
 }
 
 impl Drop for Spinner {
-    fn drop(&mut self) {
-        let _ = execute!(io::stdout(), Show);
-    }
+    fn drop(&mut self) {}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
