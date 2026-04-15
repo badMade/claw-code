@@ -76,6 +76,9 @@ impl SessionStore {
 
     #[must_use]
     pub fn create_handle(&self, session_id: &str) -> SessionHandle {
+        if let Err(err) = validate_session_id(session_id) {
+            panic!("{}", err);
+        }
         let id = session_id.to_string();
         let path = self
             .sessions_root
@@ -254,6 +257,19 @@ pub fn workspace_fingerprint(workspace_root: &Path) -> String {
     format!("{hash:016x}")
 }
 
+pub fn validate_session_id(id: &str) -> Result<(), SessionControlError> {
+    if id.is_empty() {
+        return Err(SessionControlError::Format("Session ID cannot be empty".to_string()));
+    }
+    if id.contains('/') || id.contains('\\') {
+        return Err(SessionControlError::Format(format!("Invalid session ID '{id}': cannot contain path separators")));
+    }
+    if id == "." || id == ".." {
+        return Err(SessionControlError::Format(format!("Invalid session ID '{id}': cannot be '.' or '..'")));
+    }
+    Ok(())
+}
+
 pub const PRIMARY_SESSION_EXTENSION: &str = "jsonl";
 pub const LEGACY_SESSION_EXTENSION: &str = "json";
 pub const LATEST_SESSION_REFERENCE: &str = "latest";
@@ -343,6 +359,7 @@ pub fn create_managed_session_handle_for(
     base_dir: impl AsRef<Path>,
     session_id: &str,
 ) -> Result<SessionHandle, SessionControlError> {
+    validate_session_id(session_id)?;
     let id = session_id.to_string();
     let path =
         managed_sessions_dir_for(base_dir)?.join(format!("{id}.{PRIMARY_SESSION_EXTENSION}"));
@@ -397,6 +414,7 @@ pub fn resolve_managed_session_path_for(
     base_dir: impl AsRef<Path>,
     session_id: &str,
 ) -> Result<PathBuf, SessionControlError> {
+    validate_session_id(session_id)?;
     let directory = managed_sessions_dir_for(base_dir)?;
     for extension in [PRIMARY_SESSION_EXTENSION, LEGACY_SESSION_EXTENSION] {
         let path = directory.join(format!("{session_id}.{extension}"));
