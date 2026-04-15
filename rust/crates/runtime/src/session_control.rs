@@ -74,16 +74,13 @@ impl SessionStore {
         &self.workspace_root
     }
 
-    #[must_use]
-    pub fn create_handle(&self, session_id: &str) -> SessionHandle {
-        if let Err(err) = validate_session_id(session_id) {
-            panic!("{}", err);
-        }
+    pub fn create_handle(&self, session_id: &str) -> Result<SessionHandle, SessionControlError> {
+        validate_session_id(session_id)?;
         let id = session_id.to_string();
         let path = self
             .sessions_root
             .join(format!("{id}.{PRIMARY_SESSION_EXTENSION}"));
-        SessionHandle { id, path }
+        Ok(SessionHandle { id, path })
     }
 
     pub fn resolve_reference(&self, reference: &str) -> Result<SessionHandle, SessionControlError> {
@@ -226,7 +223,7 @@ impl SessionStore {
     ) -> Result<ForkedManagedSession, SessionControlError> {
         let parent_session_id = session.session_id.clone();
         let forked = session.fork(branch_name);
-        let handle = self.create_handle(&forked.session_id);
+        let handle = self.create_handle(&forked.session_id)?;
         let branch_name = forked
             .fork
             .as_ref()
@@ -259,13 +256,19 @@ pub fn workspace_fingerprint(workspace_root: &Path) -> String {
 
 pub fn validate_session_id(id: &str) -> Result<(), SessionControlError> {
     if id.is_empty() {
-        return Err(SessionControlError::Format("Session ID cannot be empty".to_string()));
+        return Err(SessionControlError::Format(
+            "Session ID cannot be empty".to_string(),
+        ));
     }
     if id.contains('/') || id.contains('\\') {
-        return Err(SessionControlError::Format(format!("Invalid session ID '{id}': cannot contain path separators")));
+        return Err(SessionControlError::Format(format!(
+            "Invalid session ID '{id}': cannot contain path separators"
+        )));
     }
     if id == "." || id == ".." {
-        return Err(SessionControlError::Format(format!("Invalid session ID '{id}': cannot be '.' or '..'")));
+        return Err(SessionControlError::Format(format!(
+            "Invalid session ID '{id}': cannot be '.' or '..'"
+        )));
     }
     Ok(())
 }
@@ -731,7 +734,7 @@ mod tests {
         session
             .push_user_text(text)
             .expect("session message should save");
-        let handle = store.create_handle(&session.session_id);
+        let handle = store.create_handle(&session.session_id).expect("handle should create");
         let session = session.with_persistence_path(handle.path.clone());
         session
             .save_to_path(&handle.path)
