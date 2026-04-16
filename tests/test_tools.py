@@ -71,6 +71,7 @@ class TestTools(unittest.TestCase):
 
         # simple_mode
         simple_tools = get_tools(simple_mode=True)
+        self.assertGreater(len(simple_tools), 0, "simple_mode=True should return at least one tool")
         for tool in simple_tools:
             self.assertIn(tool.name, {'BashTool', 'FileReadTool', 'FileEditTool'})
 
