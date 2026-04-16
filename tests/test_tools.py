@@ -71,9 +71,11 @@ class TestTools(unittest.TestCase):
 
         # simple_mode
         simple_tools = get_tools(simple_mode=True)
-        self.assertGreater(len(simple_tools), 0, "simple_mode=True should return at least one tool")
-        for tool in simple_tools:
-            self.assertIn(tool.name, {'BashTool', 'FileReadTool', 'FileEditTool'})
+        simple_mode_names = {'BashTool', 'FileReadTool', 'FileEditTool'}
+        expected_simple_names = {t.name for t in PORTED_TOOLS if t.name in simple_mode_names}
+        simple_tools = get_tools(simple_mode=True)
+        simple_tool_names = {tool.name for tool in simple_tools}
+        self.assertEqual(simple_tool_names, expected_simple_names)
 
         # include_mcp=False
         # First, find if there are any MCP tools to test the filter
