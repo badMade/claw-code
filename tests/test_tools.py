@@ -70,7 +70,6 @@ class TestTools(unittest.TestCase):
         self.assertEqual(len(all_tools), len(PORTED_TOOLS))
 
         # simple_mode
-        simple_tools = get_tools(simple_mode=True)
         simple_mode_names = {'BashTool', 'FileReadTool', 'FileEditTool'}
         expected_simple_names = {t.name for t in PORTED_TOOLS if t.name in simple_mode_names}
         simple_tools = get_tools(simple_mode=True)
