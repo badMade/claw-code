@@ -138,7 +138,7 @@ class TestTools(unittest.TestCase):
 
         # With query
         if not PORTED_TOOLS:
-             self.skipTest("No tools available in snapshot")
+            self.skipTest("No tools available in snapshot")
 
         tool = PORTED_TOOLS[0]
         output = render_tool_index(query=tool.name)
