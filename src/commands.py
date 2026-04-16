@@ -66,7 +66,6 @@ def get_command(name: str) -> PortingModule | None:
 
 
 def get_commands(
-    cwd: str | None = None,
     include_plugin_commands: bool = True,
     include_skill_commands: bool = True,
 ) -> tuple[PortingModule, ...]:
