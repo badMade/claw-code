@@ -3332,13 +3332,14 @@ fn render_skills_report(skills: &[SkillSummary]) -> String {
 
         lines.push(format!("{}:", scope.label()));
         for skill in group {
-            let mut parts = vec![skill.name.as_str()];
-            if let Some(description) = &skill.description {
-                parts.push(description.as_str());
-            }
-            if let Some(detail) = skill.origin.detail_label() {
-                parts.push(detail);
-            }
+            let parts: Vec<&str> = [
+                Some(skill.name.as_str()),
+                skill.description.as_deref(),
+                skill.origin.detail_label(),
+            ]
+            .into_iter()
+            .flatten()
+            .collect();
             let detail = parts.join(" · ");
             match skill.shadowed_by {
                 Some(winner) => lines.push(format!("  (shadowed by {}) {detail}", winner.label())),
