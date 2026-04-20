@@ -3282,16 +3282,15 @@ fn render_agents_report_json(cwd: &Path, agents: &[AgentSummary]) -> Value {
 }
 
 fn agent_detail(agent: &AgentSummary) -> String {
-    let mut parts = vec![agent.name.clone()];
-    if let Some(description) = &agent.description {
-        parts.push(description.clone());
-    }
-    if let Some(model) = &agent.model {
-        parts.push(model.clone());
-    }
-    if let Some(reasoning) = &agent.reasoning_effort {
-        parts.push(reasoning.clone());
-    }
+    let parts: Vec<&str> = [
+        Some(agent.name.as_str()),
+        agent.description.as_deref(),
+        agent.model.as_deref(),
+        agent.reasoning_effort.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     parts.join(" · ")
 }
 
@@ -3325,13 +3324,14 @@ fn render_skills_report(skills: &[SkillSummary]) -> String {
 
         lines.push(format!("{}:", scope.label()));
         for skill in group {
-            let mut parts = vec![skill.name.clone()];
-            if let Some(description) = &skill.description {
-                parts.push(description.clone());
-            }
-            if let Some(detail) = skill.origin.detail_label() {
-                parts.push(detail.to_string());
-            }
+            let parts: Vec<&str> = [
+                Some(skill.name.as_str()),
+                skill.description.as_deref(),
+                skill.origin.detail_label(),
+            ]
+            .into_iter()
+            .flatten()
+            .collect();
             let detail = parts.join(" · ");
             match skill.shadowed_by {
                 Some(winner) => lines.push(format!("  (shadowed by {}) {detail}", winner.label())),
