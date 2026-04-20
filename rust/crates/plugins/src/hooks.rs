@@ -293,7 +293,7 @@ fn shell_command(command: &str) -> CommandWithStdin {
         CommandWithStdin::new(command_builder)
     } else {
         let mut command_builder = Command::new("sh");
-        command_builder.arg("-lc").arg(command);
+        command_builder.arg("-c").arg(command);
         CommandWithStdin::new(command_builder)
     };
 
@@ -337,7 +337,11 @@ impl CommandWithStdin {
         let mut child = self.command.spawn()?;
         if let Some(mut child_stdin) = child.stdin.take() {
             use std::io::Write as _;
-            child_stdin.write_all(stdin)?;
+            // Ignore BrokenPipe — the hook may exit before consuming all input.
+            match child_stdin.write_all(stdin) {
+                Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => {}
+                other => other?,
+            }
         }
         child.wait_with_output()
     }

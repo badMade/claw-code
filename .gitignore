@@ -2,7 +2,19 @@ __pycache__/
 archive/
 .omx/
 .clawd-agents/
-# Claude Code local artifacts
+
+# Rust build artifacts (also in rust/.gitignore)
+target/
+
+# Claude Code local artifacts (not shared)
 .claude/settings.local.json
 .claude/sessions/
 .port_sessions/
+
+# Editor and OS artifacts
+*.swp
+*.swo
+*~
+.DS_Store
+.vscode/
+.idea/

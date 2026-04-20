@@ -144,6 +144,20 @@ async fn handle_connection(
     requests: Arc<Mutex<Vec<CapturedRequest>>>,
 ) -> io::Result<()> {
     let (method, path, headers, raw_body) = read_http_request(&mut socket).await?;
+
+    // Respond to count_tokens requests with a stub JSON response without
+    // recording them — they are ancillary preflight calls, not scenario traffic.
+    if path.ends_with("/count_tokens") {
+        let body = r#"{"input_tokens":100}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body,
+        );
+        socket.write_all(response.as_bytes()).await?;
+        return Ok(());
+    }
+
     let request: MessageRequest = serde_json::from_str(&raw_body)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
     let scenario = detect_scenario(&request)

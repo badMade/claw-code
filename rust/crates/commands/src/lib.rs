@@ -1820,15 +1820,6 @@ fn slash_command_category(name: &str) -> &'static str {
         | "exit" | "summary" | "tag" | "thinkback" | "copy" | "share" | "feedback" | "rewind"
         | "pin" | "unpin" | "bookmarks" | "context" | "files" | "focus" | "unfocus" | "retry"
         | "stop" | "undo" => "Session",
-        "diff" | "commit" | "pr" | "issue" | "branch" | "blame" | "log" | "git" | "stash"
-        | "init" | "export" | "plan" | "review" | "security-review" | "bughunter" | "ultraplan"
-        | "teleport" | "refactor" | "fix" | "autofix" | "explain" | "docs" | "perf" | "search"
-        | "references" | "definition" | "hover" | "symbols" | "map" | "web" | "image"
-        | "screenshot" | "paste" | "listen" | "speak" | "test" | "lint" | "build" | "run"
-        | "format" | "parallel" | "multi" | "macro" | "alias" | "templates" | "migrate"
-        | "benchmark" | "cron" | "agent" | "subagent" | "agents" | "skills" | "team" | "plugin"
-        | "mcp" | "hooks" | "tasks" | "advisor" | "insights" | "release-notes" | "chat"
-        | "approve" | "deny" | "allowed-tools" | "add-dir" => "Tools",
         "model" | "permissions" | "config" | "memory" | "theme" | "vim" | "voice" | "color"
         | "effort" | "fast" | "brief" | "output-style" | "keybindings" | "privacy-settings"
         | "stickers" | "language" | "profile" | "max-tokens" | "temperature" | "system-prompt"
@@ -2358,7 +2349,8 @@ pub fn resolve_skill_invocation(
                         .map(|s| s.name.clone())
                         .collect();
                     if !names.is_empty() {
-                        message.push_str(&format!("\n  Available skills: {}", names.join(", ")));
+                        use std::fmt::Write;
+                        let _ = write!(message, "\n  Available skills: {}", names.join(", "));
                     }
                 }
                 message.push_str("\n  Usage: /skills [list|install <path>|help|<skill> [args]]");
@@ -3290,16 +3282,15 @@ fn render_agents_report_json(cwd: &Path, agents: &[AgentSummary]) -> Value {
 }
 
 fn agent_detail(agent: &AgentSummary) -> String {
-    let mut parts = vec![agent.name.clone()];
-    if let Some(description) = &agent.description {
-        parts.push(description.clone());
-    }
-    if let Some(model) = &agent.model {
-        parts.push(model.clone());
-    }
-    if let Some(reasoning) = &agent.reasoning_effort {
-        parts.push(reasoning.clone());
-    }
+    let parts: Vec<&str> = [
+        Some(agent.name.as_str()),
+        agent.description.as_deref(),
+        agent.model.as_deref(),
+        agent.reasoning_effort.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     parts.join(" · ")
 }
 
@@ -3333,13 +3324,14 @@ fn render_skills_report(skills: &[SkillSummary]) -> String {
 
         lines.push(format!("{}:", scope.label()));
         for skill in group {
-            let mut parts = vec![skill.name.clone()];
-            if let Some(description) = &skill.description {
-                parts.push(description.clone());
-            }
-            if let Some(detail) = skill.origin.detail_label() {
-                parts.push(detail.to_string());
-            }
+            let parts: Vec<&str> = [
+                Some(skill.name.as_str()),
+                skill.description.as_deref(),
+                skill.origin.detail_label(),
+            ]
+            .into_iter()
+            .flatten()
+            .collect();
             let detail = parts.join(" · ");
             match skill.shadowed_by {
                 Some(winner) => lines.push(format!("  (shadowed by {}) {detail}", winner.label())),
@@ -4469,7 +4461,9 @@ mod tests {
         assert!(help.contains("/diff"));
         assert!(help.contains("/version"));
         assert!(help.contains("/export [file]"));
-        assert!(help.contains("/session [list|switch <session-id>|fork [branch-name]]"));
+        assert!(help.contains(
+            "/session [list|switch <session-id>|fork [branch-name]|delete <session-id> [--force]]"
+        ));
         assert!(help.contains("/sandbox"));
         assert!(help.contains(
             "/plugin [list|install <path>|enable <name>|disable <name>|uninstall <id>|update <id>]"

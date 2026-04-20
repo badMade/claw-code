@@ -150,15 +150,20 @@ mod tests {
     }
 
     fn run(cwd: &std::path::Path, args: &[&str]) {
-        let status = Command::new("git")
+        let output = Command::new("git")
             .args(args)
             .current_dir(cwd)
-            .status()
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
             .unwrap_or_else(|e| panic!("git {} failed to execute: {e}", args.join(" ")));
         assert!(
-            status.success(),
-            "git {} exited with {status}",
-            args.join(" ")
+            output.status.success(),
+            "git {} exited with {}: {}",
+            args.join(" "),
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
         );
     }
 
@@ -172,6 +177,8 @@ mod tests {
         let output = Command::new("git")
             .args(["rev-parse", "HEAD"])
             .current_dir(repo)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
             .output()
             .expect("git rev-parse HEAD");
         String::from_utf8(output.stdout)
