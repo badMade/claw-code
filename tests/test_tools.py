@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+import json
+from unittest.mock import patch
 from src.tools import (
     load_tool_snapshot,
     build_tool_backlog,
@@ -11,25 +13,93 @@ from src.tools import (
     find_tools,
     execute_tool,
     render_tool_index,
-    PORTED_TOOLS
+    PORTED_TOOLS,
 )
-from src.models import PortingBacklog, PortingModule
+from src.models import PortingBacklog
 from src.permissions import ToolPermissionContext
 
 
 class TestTools(unittest.TestCase):
-    def test_load_tool_snapshot(self) -> None:
-        tools = load_tool_snapshot()
-        self.assertIsInstance(tools, tuple)
-        self.assertTrue(len(tools) > 0)
-        for tool in tools:
-            self.assertIsInstance(tool, PortingModule)
-            self.assertEqual(tool.status, 'mirrored')
+    def test_load_tool_snapshot_happy_path(self) -> None:
+        load_tool_snapshot.cache_clear()
+        mock_data = [
+            {
+                "name": "TestTool1",
+                "responsibility": "Test resp 1",
+                "source_hint": "hint1",
+            },
+            {
+                "name": "TestTool2",
+                "responsibility": "Test resp 2",
+                "source_hint": "hint2",
+            },
+        ]
+        with patch("pathlib.Path.read_text", return_value=json.dumps(mock_data)):
+            tools = load_tool_snapshot()
+
+            self.assertIsInstance(tools, tuple)
+            self.assertEqual(len(tools), 2)
+            self.assertEqual(tools[0].name, "TestTool1")
+            self.assertEqual(tools[0].responsibility, "Test resp 1")
+            self.assertEqual(tools[0].source_hint, "hint1")
+            self.assertEqual(tools[0].status, "mirrored")
+
+            self.assertEqual(tools[1].name, "TestTool2")
+            self.assertEqual(tools[1].responsibility, "Test resp 2")
+            self.assertEqual(tools[1].source_hint, "hint2")
+            self.assertEqual(tools[1].status, "mirrored")
+        load_tool_snapshot.cache_clear()
+
+    def test_load_tool_snapshot_caching(self) -> None:
+        load_tool_snapshot.cache_clear()
+        mock_data = [
+            {"name": "CacheTool", "responsibility": "resp", "source_hint": "hint"}
+        ]
+
+        with patch(
+            "pathlib.Path.read_text", return_value=json.dumps(mock_data)
+        ) as mock_read_text:
+            # First call should read the file
+            tools1 = load_tool_snapshot()
+            self.assertEqual(len(tools1), 1)
+            self.assertEqual(tools1[0].name, "CacheTool")
+            mock_read_text.assert_called_once()
+
+            # Second call should use cache
+            tools2 = load_tool_snapshot()
+            self.assertEqual(len(tools2), 1)
+            self.assertIs(tools1, tools2)
+            mock_read_text.assert_called_once()  # Call count should still be 1
+
+        load_tool_snapshot.cache_clear()
+
+    def test_load_tool_snapshot_file_not_found(self) -> None:
+        load_tool_snapshot.cache_clear()
+        with patch("pathlib.Path.read_text", side_effect=FileNotFoundError):
+            with self.assertRaises(FileNotFoundError):
+                load_tool_snapshot()
+        load_tool_snapshot.cache_clear()
+
+    def test_load_tool_snapshot_invalid_json(self) -> None:
+        load_tool_snapshot.cache_clear()
+        with patch("pathlib.Path.read_text", return_value="invalid json"):
+            with self.assertRaises(json.JSONDecodeError):
+                load_tool_snapshot()
+        load_tool_snapshot.cache_clear()
+
+    def test_load_tool_snapshot_missing_keys(self) -> None:
+        load_tool_snapshot.cache_clear()
+        # Missing 'responsibility' key
+        mock_data = [{"name": "BadTool", "source_hint": "hint"}]
+        with patch("pathlib.Path.read_text", return_value=json.dumps(mock_data)):
+            with self.assertRaises(KeyError):
+                load_tool_snapshot()
+        load_tool_snapshot.cache_clear()
 
     def test_build_tool_backlog(self) -> None:
         backlog = build_tool_backlog()
         self.assertIsInstance(backlog, PortingBacklog)
-        self.assertEqual(backlog.title, 'Tool surface')
+        self.assertEqual(backlog.title, "Tool surface")
         self.assertEqual(len(backlog.modules), len(PORTED_TOOLS))
         self.assertEqual(backlog.modules, list(PORTED_TOOLS))
 
@@ -70,21 +140,27 @@ class TestTools(unittest.TestCase):
         self.assertEqual(len(all_tools), len(PORTED_TOOLS))
 
         # simple_mode
-        simple_mode_names = {'BashTool', 'FileReadTool', 'FileEditTool'}
-        expected_simple_names = {t.name for t in PORTED_TOOLS if t.name in simple_mode_names}
+        simple_mode_names = {"BashTool", "FileReadTool", "FileEditTool"}
+        expected_simple_names = {
+            t.name for t in PORTED_TOOLS if t.name in simple_mode_names
+        }
         simple_tools = get_tools(simple_mode=True)
         simple_tool_names = {tool.name for tool in simple_tools}
         self.assertEqual(simple_tool_names, expected_simple_names)
 
         # include_mcp=False
         # First, find if there are any MCP tools to test the filter
-        mcp_tools = [t for t in PORTED_TOOLS if 'mcp' in t.name.lower() or 'mcp' in t.source_hint.lower()]
+        mcp_tools = [
+            t
+            for t in PORTED_TOOLS
+            if "mcp" in t.name.lower() or "mcp" in t.source_hint.lower()
+        ]
         if mcp_tools:
             no_mcp_tools = get_tools(include_mcp=False)
             self.assertTrue(len(no_mcp_tools) < len(PORTED_TOOLS))
             for tool in no_mcp_tools:
-                self.assertNotIn('mcp', tool.name.lower())
-                self.assertNotIn('mcp', tool.source_hint.lower())
+                self.assertNotIn("mcp", tool.name.lower())
+                self.assertNotIn("mcp", tool.source_hint.lower())
 
         # With permission context
         if len(PORTED_TOOLS) > 0:
@@ -146,5 +222,6 @@ class TestTools(unittest.TestCase):
         self.assertIn(f"Filtered by: {tool.name}", output)
         self.assertIn(tool.name, output)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
