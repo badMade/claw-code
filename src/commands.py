@@ -70,6 +70,8 @@ def get_commands(
     include_plugin_commands: bool = True,
     include_skill_commands: bool = True,
 ) -> tuple[PortingModule, ...]:
+    if include_plugin_commands and include_skill_commands:
+        return PORTED_COMMANDS
     return tuple(
         module
         for module in PORTED_COMMANDS
