@@ -76,7 +76,9 @@ impl SessionStore {
 
     pub fn create_handle(&self, session_id: &str) -> Result<SessionHandle, SessionControlError> {
         if !is_valid_session_id(session_id) {
-            return Err(SessionControlError::Format(format!("Invalid session ID: {session_id}")));
+            return Err(SessionControlError::Format(format!(
+                "Invalid session ID: {session_id}"
+            )));
         }
         let id = session_id.to_string();
         let path = self
@@ -118,6 +120,11 @@ impl SessionStore {
     }
 
     pub fn resolve_managed_path(&self, session_id: &str) -> Result<PathBuf, SessionControlError> {
+        if !is_valid_session_id(session_id) {
+            return Err(SessionControlError::Format(format!(
+                "Invalid session ID: {session_id}"
+            )));
+        }
         for extension in [PRIMARY_SESSION_EXTENSION, LEGACY_SESSION_EXTENSION] {
             let path = self.sessions_root.join(format!("{session_id}.{extension}"));
             if path.exists() {
@@ -346,7 +353,9 @@ pub fn create_managed_session_handle_for(
     session_id: &str,
 ) -> Result<SessionHandle, SessionControlError> {
     if !is_valid_session_id(session_id) {
-        return Err(SessionControlError::Format(format!("Invalid session ID: {session_id}")));
+        return Err(SessionControlError::Format(format!(
+            "Invalid session ID: {session_id}"
+        )));
     }
     let id = session_id.to_string();
     let path =
@@ -356,16 +365,10 @@ pub fn create_managed_session_handle_for(
 
 #[must_use]
 pub fn is_valid_session_id(session_id: &str) -> bool {
-    if session_id.contains('/') || session_id.contains('\\') {
+    if session_id.is_empty() || session_id == "." || session_id.contains("..") {
         return false;
     }
-    if session_id == "." || session_id == ".." {
-        return false;
-    }
-    if session_id.contains("..") {
-        return false;
-    }
-    true
+    !session_id.contains(['/', '\\'])
 }
 
 pub fn resolve_session_reference(reference: &str) -> Result<SessionHandle, SessionControlError> {
@@ -416,6 +419,11 @@ pub fn resolve_managed_session_path_for(
     base_dir: impl AsRef<Path>,
     session_id: &str,
 ) -> Result<PathBuf, SessionControlError> {
+    if !is_valid_session_id(session_id) {
+        return Err(SessionControlError::Format(format!(
+            "Invalid session ID: {session_id}"
+        )));
+    }
     let directory = managed_sessions_dir_for(base_dir)?;
     for extension in [PRIMARY_SESSION_EXTENSION, LEGACY_SESSION_EXTENSION] {
         let path = directory.join(format!("{session_id}.{extension}"));
@@ -732,7 +740,9 @@ mod tests {
         session
             .push_user_text(text)
             .expect("session message should save");
-        let handle = store.create_handle(&session.session_id).expect("handle should create");
+        let handle = store
+            .create_handle(&session.session_id)
+            .expect("handle should create");
         let session = session.with_persistence_path(handle.path.clone());
         session
             .save_to_path(&handle.path)

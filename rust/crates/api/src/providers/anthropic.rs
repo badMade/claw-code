@@ -491,9 +491,21 @@ impl AnthropicClient {
             return Ok(());
         };
 
+        let estimated_input_tokens = super::estimate_message_request_input_tokens(request);
+        let estimated_total_tokens = estimated_input_tokens.saturating_add(request.max_tokens);
+        if estimated_total_tokens > limit.context_window_tokens {
+            return Err(ApiError::ContextWindowExceeded {
+                model: resolve_model_alias(&request.model),
+                estimated_input_tokens,
+                requested_output_tokens: request.max_tokens,
+                estimated_total_tokens,
+                context_window_tokens: limit.context_window_tokens,
+            });
+        }
+
         let counted_input_tokens = match self.count_tokens(request).await {
             Ok(count) => count,
-            Err(_) => return Ok(()),
+            Err(_) => super::estimate_message_request_input_tokens(request),
         };
         let estimated_total_tokens = counted_input_tokens.saturating_add(request.max_tokens);
         if estimated_total_tokens > limit.context_window_tokens {
@@ -515,7 +527,10 @@ impl AnthropicClient {
             input_tokens: u32,
         }
 
-        let request_url = format!("{}/v1/messages/count_tokens", self.base_url.trim_end_matches('/'));
+        let request_url = format!(
+            "{}/v1/messages/count_tokens",
+            self.base_url.trim_end_matches('/')
+        );
         let mut request_body = self.request_profile.render_json_body(request)?;
         strip_unsupported_beta_body_fields(&mut request_body);
         let response = self
@@ -528,12 +543,7 @@ impl AnthropicClient {
         let response = expect_success(response).await?;
         let body = response.text().await.map_err(ApiError::from)?;
         let parsed = serde_json::from_str::<CountTokensResponse>(&body).map_err(|error| {
-            ApiError::json_deserialize(
-                "Anthropic count_tokens",
-                &request.model,
-                &body,
-                error,
-            )
+            ApiError::json_deserialize("Anthropic count_tokens", &request.model, &body, error)
         })?;
         Ok(parsed.input_tokens)
     }
@@ -597,7 +607,9 @@ fn jitter_for_base(base: Duration) -> Duration {
     let tick = JITTER_COUNTER.fetch_add(1, Ordering::Relaxed);
     // splitmix64 finalizer — mixes the low bits so large bases still see
     // jitter across their full range instead of being clamped to subsec nanos.
-    let mut mixed = raw_nanos.wrapping_add(tick).wrapping_add(0x9E37_79B9_7F4A_7C15);
+    let mut mixed = raw_nanos
+        .wrapping_add(tick)
+        .wrapping_add(0x9E37_79B9_7F4A_7C15);
     mixed = (mixed ^ (mixed >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     mixed = (mixed ^ (mixed >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     mixed ^= mixed >> 31;
