@@ -99,8 +99,7 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
-        self.cursor_hidden = false;
-        execute!(
+        let show_result = execute!(
             out,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
@@ -108,7 +107,11 @@ impl Spinner {
             Print(format!("✔ {label}\n")),
             ResetColor,
             Show
-        )?;
+        );
+        if show_result.is_ok() {
+            self.cursor_hidden = false;
+        }
+        show_result?;
         out.flush()
     }
 
@@ -119,8 +122,7 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
-        self.cursor_hidden = false;
-        execute!(
+        let show_result = execute!(
             out,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
@@ -128,7 +130,11 @@ impl Spinner {
             Print(format!("✘ {label}\n")),
             ResetColor,
             Show
-        )?;
+        );
+        if show_result.is_ok() {
+            self.cursor_hidden = false;
+        }
+        show_result?;
         out.flush()
     }
 }
@@ -927,6 +933,7 @@ fn strip_ansi(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{strip_ansi, MarkdownStreamState, Spinner, TerminalRenderer};
+    use std::io::{self, Write};
 
     #[test]
     fn renders_markdown_with_styling_and_lists() {
@@ -1080,5 +1087,49 @@ mod tests {
 
         let output = String::from_utf8_lossy(&out);
         assert!(output.contains("Working"));
+    }
+
+    struct AlwaysFailWriter;
+
+    impl Write for AlwaysFailWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            Err(io::Error::other("write failed"))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn spinner_finish_error_keeps_cursor_hidden_for_drop_recovery() {
+        let terminal_renderer = TerminalRenderer::new();
+        let mut spinner = Spinner::new();
+        let mut out = Vec::new();
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("tick succeeds");
+
+        let mut failing_out = AlwaysFailWriter;
+        let result = spinner.finish("Done", terminal_renderer.color_theme(), &mut failing_out);
+
+        assert!(result.is_err());
+        assert!(spinner.cursor_hidden);
+    }
+
+    #[test]
+    fn spinner_fail_error_keeps_cursor_hidden_for_drop_recovery() {
+        let terminal_renderer = TerminalRenderer::new();
+        let mut spinner = Spinner::new();
+        let mut out = Vec::new();
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("tick succeeds");
+
+        let mut failing_out = AlwaysFailWriter;
+        let result = spinner.fail("Done", terminal_renderer.color_theme(), &mut failing_out);
+
+        assert!(result.is_err());
+        assert!(spinner.cursor_hidden);
     }
 }
