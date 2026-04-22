@@ -10,6 +10,9 @@ target/
 .claude/settings.local.json
 .claude/sessions/
 
+# Session store artifacts
+.port_sessions/
+
 # Editor and OS artifacts
 *.swp
 *.swo
