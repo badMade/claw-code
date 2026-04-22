@@ -5151,7 +5151,9 @@ fn detect_powershell_shell() -> std::io::Result<&'static str> {
 fn command_exists(command: &str) -> bool {
     std::process::Command::new("sh")
         .arg("-c")
-        .arg(format!("command -v {command} >/dev/null 2>&1"))
+        .arg("command -v \"$1\" >/dev/null 2>&1")
+        .arg("--")
+        .arg(command)
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
@@ -5361,6 +5363,23 @@ mod tests {
     use std::sync::{Arc, Mutex, OnceLock};
     use std::thread;
     use std::time::Duration;
+
+    #[test]
+    fn test_command_exists_injection() {
+        let test_file = "/tmp/vulnerable_test_exists";
+        let _ = std::fs::remove_file(test_file);
+
+        let malicious_command = format!("ls; touch {}", test_file);
+        super::command_exists(&malicious_command);
+
+        let exists = std::path::Path::new(test_file).exists();
+        let _ = std::fs::remove_file(test_file);
+
+        assert!(
+            !exists,
+            "Vulnerability exploited! Command injection possible in command_exists"
+        );
+    }
 
     use super::{
         agent_permission_policy, allowed_tools_for_subagent, classify_lane_failure,
