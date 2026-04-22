@@ -9,6 +9,7 @@ target/
 # Claude Code local artifacts (not shared)
 .claude/settings.local.json
 .claude/sessions/
+.port_sessions/
 
 # Editor and OS artifacts
 *.swp
