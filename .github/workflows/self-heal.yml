@@ -1,0 +1,106 @@
+name: Self-heal (auto-fix & PR)
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Rust CI"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: selfheal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  self-heal:
+    # Only run on failure of the watched workflow, or manual dispatch.
+    # Never run on selfheal-* branches (loop prevention).
+    if: >
+      (github.ref_name == null || !startsWith(github.ref_name, 'selfheal-')) &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install base tooling
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install -e .
+          pip install pytest ruff mypy
+
+      - name: Healthcheck (pre-repair)
+        id: pre
+        continue-on-error: true
+        run: python scripts/healthcheck.py 2>&1 | tee selfheal-pre.txt
+
+      - name: Attempt self-heal repairs
+        run: python scripts/self_heal.py 2>&1 | tee selfheal-repair.txt
+
+      - name: Healthcheck (post-repair)
+        id: post
+        continue-on-error: true
+        run: python scripts/healthcheck.py 2>&1 | tee selfheal-post.txt
+
+      - name: Collect logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selfheal-logs
+          path: |
+            selfheal-pre.txt
+            selfheal-repair.txt
+            selfheal-post.txt
+
+      - name: Create PR with fixes
+        if: steps.post.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          BRANCH="selfheal-$(git rev-parse --short HEAD)-$(date +%s)"
+          git checkout -b "$BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "[Self-Heal] Auto-fix from CI failure
+
+          Automated repairs applied by self-heal workflow.
+          See attached artifacts for pre/post healthcheck logs."
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "[Self-Heal] Auto-fix: $(date +%Y-%m-%d)" \
+            --body "## Self-Heal Auto-PR
+
+          This PR was created automatically by the self-heal workflow after
+          a CI failure on \`${{ github.ref_name }}\`.
+
+          **Pre-repair status:** ${{ steps.pre.outcome }}
+          **Post-repair status:** ${{ steps.post.outcome }}
+
+          Review the attached artifacts for full logs.
+
+          ---
+          *Auto-generated. Do not merge without review.*" \
+            --label "self-heal" \
+            --head "$BRANCH" \
+            --base "${{ github.event.repository.default_branch }}"
