@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from types import ModuleType
 from pathlib import Path
-from typing import get_type_hints
+from typing import Any, Callable, get_origin, get_type_hints
 from unittest import mock
 
 if "structlog" not in sys.modules:
@@ -15,16 +15,16 @@ if "structlog" not in sys.modules:
 
     class _NoopLogger:
         def info(self, *args: object, **kwargs: object) -> None:
-            return
+            pass
 
         def warning(self, *args: object, **kwargs: object) -> None:
-            return
+            pass
 
         def error(self, *args: object, **kwargs: object) -> None:
-            return
+            pass
 
         def critical(self, *args: object, **kwargs: object) -> None:
-            return
+            pass
 
     def _get_logger(*args: object, **kwargs: object) -> _NoopLogger:
         return _NoopLogger()
@@ -35,23 +35,30 @@ if "structlog" not in sys.modules:
 if "tenacity" not in sys.modules:
     tenacity = ModuleType("tenacity")
 
-    def _stop_after_attempt(attempts: int) -> int:
-        return attempts
+    class _StopStrategy:
+        def __init__(self, attempts: int) -> None:
+            self.attempts = attempts
+
+    def _stop_after_attempt(attempts: int) -> _StopStrategy:
+        return _StopStrategy(attempts)
 
     def _wait_exponential_jitter(**kwargs: object) -> None:
-        return None
+        pass
 
-    def _retry(*, stop: int, wait: object) -> object:
-        def _decorator(func: object) -> object:
-            def _wrapper(*args: object, **kwargs: object) -> object:
+    def _retry(*, stop: object, wait: object) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        attempts = stop.attempts if isinstance(stop, _StopStrategy) else int(stop)
+
+        def _decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            def _wrapper(*args: object, **kwargs: object) -> Any:
                 last_error: Exception | None = None
-                for _ in range(stop):
+                for _ in range(attempts):
                     try:
-                        return func(*args, **kwargs)  # type: ignore[misc]
-                    except Exception as err:  # pragma: no cover - simple fallback path
+                        return func(*args, **kwargs)
+                    except Exception as err:
                         last_error = err
-                assert last_error is not None
-                raise last_error
+                if last_error is not None:
+                    raise last_error
+                raise RuntimeError("Retry failed without capturing an exception")
 
             return _wrapper
 
@@ -65,6 +72,13 @@ if "tenacity" not in sys.modules:
 if "pydantic_settings" not in sys.modules:
     pydantic_settings = ModuleType("pydantic_settings")
 
+    def _is_valid_type(value: object, expected_type: object) -> bool:
+        try:
+            return isinstance(value, expected_type)
+        except TypeError:
+            origin = get_origin(expected_type)
+            return origin is not None and isinstance(value, origin)
+
     class _BaseSettings:
         def __init__(self, **kwargs: object) -> None:
             annotations = get_type_hints(type(self))
@@ -73,7 +87,7 @@ if "pydantic_settings" not in sys.modules:
                     setattr(self, key, getattr(type(self), key))
             for key, value in kwargs.items():
                 expected_type = annotations.get(key)
-                if expected_type is not None and not isinstance(value, expected_type):
+                if expected_type is not None and not _is_valid_type(value, expected_type):
                     raise ValueError(f"Invalid type for {key}")
                 setattr(self, key, value)
 
