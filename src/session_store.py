@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 @dataclass(frozen=True)
@@ -19,12 +19,16 @@ DEFAULT_SESSION_DIR = Path('.port_sessions')
 def validate_session_id(session_id: str) -> None:
     if not session_id:
         raise ValueError("Session ID cannot be empty")
-    if "/" in session_id or "\\" in session_id:
-        raise ValueError(f"Invalid session ID '{session_id}': cannot contain path separators")
-    if session_id in (".", ".."):
-        raise ValueError(f"Invalid session ID '{session_id}': cannot be '.' or '..'")
-    if len(session_id) >= 2 and session_id[0].isalpha() and session_id[1] == ":":
-        raise ValueError(f"Invalid session ID '{session_id}': cannot use a Windows drive prefix")
+    # Validate against both Unix and Windows path parsing so that malicious
+    # identifiers are rejected regardless of the host platform.  This catches
+    # path separators, traversal segments (`.`, `..`), root anchors, and
+    # Windows drive prefixes such as `C:` or UNC paths.
+    for path_cls in (PurePosixPath, PureWindowsPath):
+        p = path_cls(session_id)
+        if p.drive or p.root or len(p.parts) != 1 or p.parts[0] in (".", ".."):
+            raise ValueError(
+                f"Invalid session ID '{session_id}': must be a single normal filename component"
+            )
 
 
 def save_session(session: StoredSession, directory: Path | None = None) -> Path:
