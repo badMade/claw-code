@@ -17,3 +17,6 @@ target/
 .DS_Store
 .vscode/
 .idea/
+
+# Local session artifacts
+.port_sessions/
