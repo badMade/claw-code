@@ -72,14 +72,16 @@ def get_commands(
 ) -> tuple[PortingModule, ...]:
     if include_plugin_commands and include_skill_commands:
         return PORTED_COMMANDS
-    return tuple(
-        module
-        for module in PORTED_COMMANDS
-        if (include_plugin_commands or "plugin" not in module.source_hint.lower())
-        and (include_skill_commands or "skills" not in module.source_hint.lower())
-    )
 
+    filtered_commands: list[PortingModule] = []
+    for module in PORTED_COMMANDS:
+        source_hint_lower = module.source_hint.lower()
+        if (include_plugin_commands or "plugin" not in source_hint_lower) and (
+            include_skill_commands or "skills" not in source_hint_lower
+        ):
+            filtered_commands.append(module)
 
+    return tuple(filtered_commands)
 def find_commands(query: str, limit: int = 20) -> list[PortingModule]:
     needle = query.lower()
     matches = [
