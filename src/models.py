@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import functools
+from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class Subsystem:
