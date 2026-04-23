@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
 
 from .models import PortingBacklog, PortingModule
 
@@ -52,13 +54,13 @@ def command_names() -> list[str]:
 
 
 @lru_cache(maxsize=1)
-def _get_command_lookup() -> dict[str, PortingModule]:
+def _get_command_lookup() -> Mapping[str, PortingModule]:
     lookup: dict[str, PortingModule] = {}
     for module in PORTED_COMMANDS:
         name_lower = module.name.lower()
         if name_lower not in lookup:
             lookup[name_lower] = module
-    return lookup
+    return MappingProxyType(lookup)
 
 
 def get_command(name: str) -> PortingModule | None:
@@ -66,7 +68,6 @@ def get_command(name: str) -> PortingModule | None:
 
 
 def get_commands(
-    cwd: str | None = None,
     include_plugin_commands: bool = True,
     include_skill_commands: bool = True,
 ) -> tuple[PortingModule, ...]:
