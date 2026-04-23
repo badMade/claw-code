@@ -245,10 +245,5 @@ class PortRuntime:
 
     @staticmethod
     def _score(tokens: set[str], module: PortingModule) -> int:
-        # ⚡ Bolt: Use precomputed cached property to avoid redundant string allocations inside loops
         haystack = module.search_text
-        score = 0
-        for token in tokens:
-            if token in haystack:
-                score += 1
-        return score
+        return sum(1 for token in tokens if token in haystack)
