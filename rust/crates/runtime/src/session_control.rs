@@ -74,13 +74,13 @@ impl SessionStore {
         &self.workspace_root
     }
 
-    #[must_use]
-    pub fn create_handle(&self, session_id: &str) -> SessionHandle {
+    pub fn create_handle(&self, session_id: &str) -> Result<SessionHandle, SessionControlError> {
+        validate_session_id(session_id)?;
         let id = session_id.to_string();
         let path = self
             .sessions_root
             .join(format!("{id}.{PRIMARY_SESSION_EXTENSION}"));
-        SessionHandle { id, path }
+        Ok(SessionHandle { id, path })
     }
 
     pub fn resolve_reference(&self, reference: &str) -> Result<SessionHandle, SessionControlError> {
@@ -116,6 +116,7 @@ impl SessionStore {
     }
 
     pub fn resolve_managed_path(&self, session_id: &str) -> Result<PathBuf, SessionControlError> {
+        validate_session_id(session_id)?;
         for extension in [PRIMARY_SESSION_EXTENSION, LEGACY_SESSION_EXTENSION] {
             let path = self.sessions_root.join(format!("{session_id}.{extension}"));
             if path.exists() {
@@ -223,7 +224,7 @@ impl SessionStore {
     ) -> Result<ForkedManagedSession, SessionControlError> {
         let parent_session_id = session.session_id.clone();
         let forked = session.fork(branch_name);
-        let handle = self.create_handle(&forked.session_id);
+        let handle = self.create_handle(&forked.session_id)?;
         let branch_name = forked
             .fork
             .as_ref()
@@ -252,6 +253,44 @@ pub fn workspace_fingerprint(workspace_root: &Path) -> String {
         hash = hash.wrapping_mul(0x0100_0000_01b3);
     }
     format!("{hash:016x}")
+}
+
+pub fn validate_session_id(id: &str) -> Result<(), SessionControlError> {
+    if id.is_empty() {
+        return Err(SessionControlError::Format(
+            "Session ID cannot be empty".to_string(),
+        ));
+    }
+
+    // Explicitly reject backslash on all platforms: on Unix, Path parsing
+    // treats `\` as a normal filename character, so it would otherwise pass
+    // the component check below while still being dangerous on Windows.
+    if id.contains('\\') {
+        return Err(SessionControlError::Format(format!(
+            "Invalid session ID '{id}': cannot contain path separators"
+        )));
+    }
+
+    // Reject Windows drive-qualified paths (e.g. "C:file") on all platforms.
+    // On Unix, Path::new("C:file") yields a single Normal component and would
+    // pass the check below, but PathBuf::join would override the base on
+    // Windows should the code ever run there.
+    let bytes = id.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return Err(SessionControlError::Format(format!(
+            "Invalid session ID '{id}': cannot use a Windows drive prefix"
+        )));
+    }
+
+    // On all platforms this catches `/`, `.`, `..`, UNC/root paths, and any
+    // multi-component sequence that wasn't caught above.
+    let mut components = Path::new(id).components();
+    match (components.next(), components.next()) {
+        (Some(std::path::Component::Normal(_)), None) => Ok(()),
+        _ => Err(SessionControlError::Format(format!(
+            "Invalid session ID '{id}': must be a single normal path component"
+        ))),
+    }
 }
 
 pub const PRIMARY_SESSION_EXTENSION: &str = "jsonl";
@@ -343,6 +382,7 @@ pub fn create_managed_session_handle_for(
     base_dir: impl AsRef<Path>,
     session_id: &str,
 ) -> Result<SessionHandle, SessionControlError> {
+    validate_session_id(session_id)?;
     let id = session_id.to_string();
     let path =
         managed_sessions_dir_for(base_dir)?.join(format!("{id}.{PRIMARY_SESSION_EXTENSION}"));
@@ -397,6 +437,7 @@ pub fn resolve_managed_session_path_for(
     base_dir: impl AsRef<Path>,
     session_id: &str,
 ) -> Result<PathBuf, SessionControlError> {
+    validate_session_id(session_id)?;
     let directory = managed_sessions_dir_for(base_dir)?;
     for extension in [PRIMARY_SESSION_EXTENSION, LEGACY_SESSION_EXTENSION] {
         let path = directory.join(format!("{session_id}.{extension}"));
@@ -580,7 +621,8 @@ mod tests {
     use super::{
         create_managed_session_handle_for, fork_managed_session_for, is_session_reference_alias,
         list_managed_sessions_for, load_managed_session_for, resolve_session_reference_for,
-        workspace_fingerprint, ManagedSessionSummary, SessionStore, LATEST_SESSION_REFERENCE,
+        validate_session_id, workspace_fingerprint, ManagedSessionSummary, SessionStore,
+        LATEST_SESSION_REFERENCE,
     };
     use crate::session::Session;
     use std::fs;
@@ -713,7 +755,9 @@ mod tests {
         session
             .push_user_text(text)
             .expect("session message should save");
-        let handle = store.create_handle(&session.session_id);
+        let handle = store
+            .create_handle(&session.session_id)
+            .expect("handle should create");
         let session = session.with_persistence_path(handle.path.clone());
         session
             .save_to_path(&handle.path)
@@ -870,5 +914,49 @@ mod tests {
             "forked session path must be inside the store namespace"
         );
         fs::remove_dir_all(base).expect("temp dir should clean up");
+    }
+
+    // ------------------------------------------------------------------
+    // validate_session_id tests
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn validate_session_id_accepts_normal_identifiers() {
+        assert!(validate_session_id("abc123").is_ok());
+        assert!(validate_session_id("my-session").is_ok());
+        assert!(validate_session_id("session_2024-01-01").is_ok());
+        assert!(validate_session_id("UPPER_CASE").is_ok());
+    }
+
+    #[test]
+    fn validate_session_id_rejects_empty() {
+        assert!(validate_session_id("").is_err());
+    }
+
+    #[test]
+    fn validate_session_id_rejects_forward_slash() {
+        assert!(validate_session_id("foo/bar").is_err());
+        assert!(validate_session_id("../../etc/passwd").is_err());
+        assert!(validate_session_id("/absolute").is_err());
+    }
+
+    #[test]
+    fn validate_session_id_rejects_backslash() {
+        assert!(validate_session_id("foo\\bar").is_err());
+        assert!(validate_session_id("..\\..\\windows\\system32").is_err());
+    }
+
+    #[test]
+    fn validate_session_id_rejects_dot_and_dotdot() {
+        assert!(validate_session_id(".").is_err());
+        assert!(validate_session_id("..").is_err());
+    }
+
+    #[test]
+    fn validate_session_id_rejects_windows_drive_prefix() {
+        // An explicit prefix check is needed because on Unix, Path::new("C:file")
+        // yields a single Normal component and would otherwise pass validation.
+        assert!(validate_session_id("C:session").is_err());
+        assert!(validate_session_id("C:\\session").is_err());
     }
 }

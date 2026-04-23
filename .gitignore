@@ -11,6 +11,9 @@ target/
 .claude/sessions/
 .port_sessions/
 
+# Session store artifacts
+.port_sessions/
+
 # Editor and OS artifacts
 *.swp
 *.swo
