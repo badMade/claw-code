@@ -18,4 +18,3 @@ target/
 .DS_Store
 .vscode/
 .idea/
-.port_sessions/
