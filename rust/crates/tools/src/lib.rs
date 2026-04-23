@@ -3769,10 +3769,7 @@ impl ProviderRuntimeClient {
         allowed_tools: BTreeSet<String>,
         fallback_config: &ProviderFallbackConfig,
     ) -> Result<Self, String> {
-        let primary_model = fallback_config
-            .primary()
-            .map(str::to_string)
-            .unwrap_or(model);
+        let primary_model = fallback_config.primary().map_or(model, str::to_string);
         let primary = build_provider_entry(&primary_model)?;
         let mut chain = vec![primary];
         for fallback_model in fallback_config.fallbacks() {
@@ -3849,17 +3846,15 @@ impl ApiClient for ProviderRuntimeClient {
                         entry.model
                     );
                     last_error = Some(error);
-                    continue;
                 }
                 Err(error) => return Err(RuntimeError::new(error.to_string())),
             }
         }
 
-        Err(RuntimeError::new(
-            last_error
-                .map(|error| error.to_string())
-                .unwrap_or_else(|| String::from("provider chain exhausted with no attempts")),
-        ))
+        Err(RuntimeError::new(last_error.map_or_else(
+            || String::from("provider chain exhausted with no attempts"),
+            |error| error.to_string(),
+        )))
     }
 }
 
@@ -4806,7 +4801,7 @@ fn resolve_repl_runtime(language: &str) -> Result<ReplRuntime, String> {
         "sh" | "shell" | "bash" => Ok(ReplRuntime {
             program: detect_first_command(&["bash", "sh"])
                 .ok_or_else(|| String::from("shell runtime not found"))?,
-            args: &["-lc"],
+            args: &["-c"],
         }),
         other => Err(format!("unsupported REPL language: {other}")),
     }
@@ -5155,7 +5150,7 @@ fn detect_powershell_shell() -> std::io::Result<&'static str> {
 
 fn command_exists(command: &str) -> bool {
     std::process::Command::new("sh")
-        .arg("-lc")
+        .arg("-c")
         .arg(format!("command -v {command} >/dev/null 2>&1"))
         .status()
         .map(|status| status.success())

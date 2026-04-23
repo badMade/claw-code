@@ -2096,7 +2096,7 @@ fn run_lifecycle_commands(
             process
         } else {
             let mut process = Command::new("sh");
-            process.arg("-lc").arg(command);
+            process.arg("-c").arg(command);
             process
         };
         if let Some(root) = &metadata.root {

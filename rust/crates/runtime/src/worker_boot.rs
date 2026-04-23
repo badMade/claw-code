@@ -576,13 +576,6 @@ fn push_event(
 /// This is the file-based observability surface: external observers (clawhip, orchestrators)
 /// poll this file instead of requiring an HTTP route on the opencode binary.
 fn emit_state_file(worker: &Worker) {
-    let state_dir = std::path::Path::new(&worker.cwd).join(".claw");
-    if let Err(_) = std::fs::create_dir_all(&state_dir) {
-        return;
-    }
-    let state_path = state_dir.join("worker-state.json");
-    let tmp_path = state_dir.join("worker-state.json.tmp");
-
     #[derive(serde::Serialize)]
     struct StateSnapshot<'a> {
         worker_id: &'a str,
@@ -596,6 +589,13 @@ fn emit_state_file(worker: &Worker) {
         /// stalled workers without computing epoch deltas.
         seconds_since_update: u64,
     }
+
+    let state_dir = std::path::Path::new(&worker.cwd).join(".claw");
+    if std::fs::create_dir_all(&state_dir).is_err() {
+        return;
+    }
+    let state_path = state_dir.join("worker-state.json");
+    let tmp_path = state_dir.join("worker-state.json.tmp");
 
     let now = now_secs();
     let snapshot = StateSnapshot {

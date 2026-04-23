@@ -180,7 +180,11 @@ fn resume_latest_restores_the_most_recent_managed_session() {
     // given
     let temp_dir = unique_temp_dir("resume-latest");
     let project_dir = temp_dir.join("project");
-    let sessions_dir = project_dir.join(".claw").join("sessions");
+    let fingerprint = runtime::session_control::workspace_fingerprint(&project_dir);
+    let sessions_dir = project_dir
+        .join(".claw")
+        .join("sessions")
+        .join(&fingerprint);
     fs::create_dir_all(&sessions_dir).expect("sessions dir should exist");
 
     let older_path = sessions_dir.join("session-older.jsonl");

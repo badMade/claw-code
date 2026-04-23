@@ -201,16 +201,22 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             output_format,
             allowed_tools,
             permission_mode,
-            compact: _,
+            compact,
             base_commit,
         } => {
             run_stale_base_preflight(base_commit.as_deref());
-            let stdin_context = read_piped_stdin();
+            // Only read piped stdin when no CLI prompt was given, so that
+            // stdin remains available for interactive permission prompts.
+            let stdin_context = if prompt.is_empty() {
+                read_piped_stdin()
+            } else {
+                None
+            };
             let effective_prompt = merge_prompt_with_stdin(&prompt, stdin_context.as_deref());
             LiveCli::new(model, true, allowed_tools, permission_mode)?.run_turn_with_output(
                 &effective_prompt,
                 output_format,
-                false,
+                compact,
             )?;
         }
         CliAction::Login { output_format } => run_login(output_format)?,
@@ -228,7 +234,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             allowed_tools,
             permission_mode,
             base_commit,
-        } => run_repl(model, allowed_tools, permission_mode, base_commit)?,
+        } => run_repl(
+            model,
+            allowed_tools,
+            permission_mode,
+            base_commit.as_deref(),
+        )?,
         CliAction::HelpTopic(topic) => print_help_topic(topic),
         CliAction::Help { output_format } => print_help(output_format)?,
     }
@@ -1033,7 +1044,7 @@ fn parse_export_args(args: &[String], output_format: CliOutputFormat) -> Result<
                 let value = args
                     .get(index + 1)
                     .ok_or_else(|| "missing value for --session".to_string())?;
-                session_reference = value.clone();
+                session_reference.clone_from(value);
                 index += 2;
             }
             flag if flag.starts_with("--session=") => {
@@ -1335,7 +1346,7 @@ fn run_worker_state(output_format: CliOutputFormat) -> Result<(), Box<dyn std::e
     if !state_path.exists() {
         match output_format {
             CliOutputFormat::Text => {
-                println!("No worker state file found at {}", state_path.display())
+                println!("No worker state file found at {}", state_path.display());
             }
             CliOutputFormat::Json => println!(
                 "{}",
@@ -2731,9 +2742,8 @@ fn run_resume_command(
 /// commit (from `--base-commit` flag or `.claw-base` file). Emits a warning to
 /// stderr when the HEAD has diverged.
 fn run_stale_base_preflight(flag_value: Option<&str>) {
-    let cwd = match env::current_dir() {
-        Ok(cwd) => cwd,
-        Err(_) => return,
+    let Ok(cwd) = env::current_dir() else {
+        return;
     };
     let source = resolve_expected_base(flag_value, &cwd);
     let state = check_base_commit(&cwd, source.as_ref());
@@ -2746,9 +2756,9 @@ fn run_repl(
     model: String,
     allowed_tools: Option<AllowedToolSet>,
     permission_mode: PermissionMode,
-    base_commit: Option<String>,
+    base_commit: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    run_stale_base_preflight(base_commit.as_deref());
+    run_stale_base_preflight(base_commit);
     let resolved_model = resolve_repl_model(model);
     let mut cli = LiveCli::new(resolved_model, true, allowed_tools, permission_mode)?;
     let mut editor =
@@ -4062,6 +4072,7 @@ impl LiveCli {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)]
     fn handle_session_command(
         &mut self,
         action: Option<&str>,
@@ -5347,14 +5358,16 @@ fn civil_from_days(days: i64) -> (i32, u32, u32) {
     } else {
         (z - 146_096) / 146_097
     };
+    #[allow(clippy::cast_sign_loss)]
     let doe = (z - era * 146_097) as u64; // [0, 146_096]
     let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
-    let y = yoe as i64 + era * 400;
+    let y = i64::try_from(yoe).expect("yoe is bounded [0, 399] and always fits in i64") + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
     let mp = (5 * doy + 2) / 153; // [0, 11]
     let d = doy - (153 * mp + 2) / 5 + 1; // [1, 31]
     let m = if mp < 10 { mp + 3 } else { mp - 9 }; // [1, 12]
     let y = y + i64::from(m <= 2);
+    #[allow(clippy::cast_possible_truncation)]
     (y as i32, m as u32, d as u32)
 }
 
@@ -6402,7 +6415,6 @@ impl ApiClient for AnthropicRuntimeClient {
                     {
                         // Stalled after tool completion — nudge the model by
                         // re-sending the same request.
-                        continue;
                     }
                     Err(error) => return Err(error),
                 }
@@ -7739,7 +7751,7 @@ mod tests {
         render_prompt_history_report, render_repl_help, render_resume_usage,
         render_session_markdown, resolve_model_alias, resolve_model_alias_with_config,
         resolve_repl_model, resolve_session_reference, response_to_events,
-        resume_supported_slash_commands, run_resume_command, short_tool_id,
+        resume_supported_slash_commands, run_resume_command, sessions_dir, short_tool_id,
         slash_command_completion_candidates_with_sessions, status_context,
         summarize_tool_payload_for_markdown, validate_no_args, write_mcp_server_fixture, CliAction,
         CliOutputFormat, CliToolExecutor, GitWorkspaceSummary, InternalPromptProgressEvent,
@@ -7952,15 +7964,19 @@ mod tests {
     }
 
     fn git(args: &[&str], cwd: &Path) {
-        let status = Command::new("git")
+        let output = Command::new("git")
             .args(args)
             .current_dir(cwd)
-            .status()
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
             .expect("git command should run");
         assert!(
-            status.success(),
-            "git command failed: git {}",
-            args.join(" ")
+            output.status.success(),
+            "git command failed: git {}: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr)
         );
     }
 
@@ -9021,7 +9037,7 @@ mod tests {
             parse_args(&["help".to_string(), "me".to_string(), "debug".to_string()])
                 .expect("prompt shorthand should still work"),
             CliAction::Prompt {
-                prompt: "$help overview".to_string(),
+                prompt: "help me debug".to_string(),
                 model: DEFAULT_MODEL.to_string(),
                 output_format: CliOutputFormat::Text,
                 allowed_tools: None,
@@ -9338,7 +9354,9 @@ mod tests {
         assert!(help.contains("/diff"));
         assert!(help.contains("/version"));
         assert!(help.contains("/export [file]"));
-        assert!(help.contains("/session [list|switch <session-id>|fork [branch-name]]"));
+        assert!(help.contains(
+            "/session [list|switch <session-id>|fork [branch-name]|delete <session-id> [--force]]"
+        ));
         assert!(help.contains(
             "/plugin [list|install <path>|enable <name>|disable <name>|uninstall <id>|update <id>]"
         ));
@@ -9956,13 +9974,9 @@ UU conflicted.rs",
         let handle = create_managed_session_handle("session-alpha").expect("jsonl handle");
         assert!(handle.path.ends_with("session-alpha.jsonl"));
 
-        let legacy_path = workspace.join(".claw/sessions/legacy.json");
-        std::fs::create_dir_all(
-            legacy_path
-                .parent()
-                .expect("legacy path should have parent directory"),
-        )
-        .expect("session dir should exist");
+        let legacy_path = sessions_dir()
+            .expect("sessions dir should resolve")
+            .join("legacy.json");
         Session::new()
             .with_persistence_path(legacy_path.clone())
             .save_to_path(&legacy_path)

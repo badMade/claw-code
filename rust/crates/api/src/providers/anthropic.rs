@@ -491,21 +491,8 @@ impl AnthropicClient {
             return Ok(());
         };
 
-        let estimated_input_tokens = super::estimate_message_request_input_tokens(request);
-        let estimated_total_tokens = estimated_input_tokens.saturating_add(request.max_tokens);
-        if estimated_total_tokens > limit.context_window_tokens {
-            return Err(ApiError::ContextWindowExceeded {
-                model: resolve_model_alias(&request.model),
-                estimated_input_tokens,
-                requested_output_tokens: request.max_tokens,
-                estimated_total_tokens,
-                context_window_tokens: limit.context_window_tokens,
-            });
-        }
-
-        let counted_input_tokens = match self.count_tokens(request).await {
-            Ok(count) => count,
-            Err(_) => super::estimate_message_request_input_tokens(request),
+        let Ok(counted_input_tokens) = self.count_tokens(request).await else {
+            return Ok(());
         };
         let estimated_total_tokens = counted_input_tokens.saturating_add(request.max_tokens);
         if estimated_total_tokens > limit.context_window_tokens {
