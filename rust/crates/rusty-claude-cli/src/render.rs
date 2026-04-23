@@ -1,7 +1,7 @@
 use std::fmt::Write as FmtWrite;
 use std::io::{self, Write};
 
-use crossterm::cursor::{MoveToColumn, RestorePosition, SavePosition};
+use crossterm::cursor::{Hide, MoveToColumn, RestorePosition, SavePosition, Show};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor, Stylize};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
@@ -67,6 +67,7 @@ impl Spinner {
         self.frame_index += 1;
         queue!(
             out,
+            Hide,
             SavePosition,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
@@ -87,6 +88,7 @@ impl Spinner {
         self.frame_index = 0;
         execute!(
             out,
+            Show,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
             SetForegroundColor(theme.spinner_done),
@@ -105,6 +107,7 @@ impl Spinner {
         self.frame_index = 0;
         execute!(
             out,
+            Show,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
             SetForegroundColor(theme.spinner_failed),
@@ -112,6 +115,12 @@ impl Spinner {
             ResetColor
         )?;
         out.flush()
+    }
+}
+
+impl Drop for Spinner {
+    fn drop(&mut self) {
+        let _ = execute!(io::stdout(), Show);
     }
 }
 
