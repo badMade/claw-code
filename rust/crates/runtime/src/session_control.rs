@@ -74,13 +74,26 @@ impl SessionStore {
         &self.workspace_root
     }
 
-    #[must_use]
-    pub fn create_handle(&self, session_id: &str) -> SessionHandle {
+    pub fn validate_session_id(session_id: &str) -> Result<(), SessionControlError> {
+        if session_id.contains('/')
+            || session_id.contains('\\')
+            || session_id.contains("..")
+            || session_id == "."
+        {
+            return Err(SessionControlError::Format(format!(
+                "Invalid session ID: {session_id}"
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn create_handle(&self, session_id: &str) -> Result<SessionHandle, SessionControlError> {
+        Self::validate_session_id(session_id)?;
         let id = session_id.to_string();
         let path = self
             .sessions_root
             .join(format!("{id}.{PRIMARY_SESSION_EXTENSION}"));
-        SessionHandle { id, path }
+        Ok(SessionHandle { id, path })
     }
 
     pub fn resolve_reference(&self, reference: &str) -> Result<SessionHandle, SessionControlError> {
@@ -116,6 +129,7 @@ impl SessionStore {
     }
 
     pub fn resolve_managed_path(&self, session_id: &str) -> Result<PathBuf, SessionControlError> {
+        Self::validate_session_id(session_id)?;
         for extension in [PRIMARY_SESSION_EXTENSION, LEGACY_SESSION_EXTENSION] {
             let path = self.sessions_root.join(format!("{session_id}.{extension}"));
             if path.exists() {
@@ -223,7 +237,7 @@ impl SessionStore {
     ) -> Result<ForkedManagedSession, SessionControlError> {
         let parent_session_id = session.session_id.clone();
         let forked = session.fork(branch_name);
-        let handle = self.create_handle(&forked.session_id);
+        let handle = self.create_handle(&forked.session_id)?;
         let branch_name = forked
             .fork
             .as_ref()
@@ -713,7 +727,9 @@ mod tests {
         session
             .push_user_text(text)
             .expect("session message should save");
-        let handle = store.create_handle(&session.session_id);
+        let handle = store
+            .create_handle(&session.session_id)
+            .expect("should create handle");
         let session = session.with_persistence_path(handle.path.clone());
         session
             .save_to_path(&handle.path)
