@@ -44,17 +44,32 @@ impl Default for ColorTheme {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Spinner {
     frame_index: usize,
+    frames: &'static [&'static str],
+}
+
+impl Default for Spinner {
+    fn default() -> Self {
+        Self {
+            frame_index: 0,
+            frames: &Self::DEFAULT_FRAMES,
+        }
+    }
 }
 
 impl Spinner {
-    const FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    const DEFAULT_FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    pub const REASONING_FRAMES: [&str; 4] = ["⣾", "⣽", "⣻", "⢿"];
 
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn set_frames(&mut self, frames: &'static [&'static str]) {
+        self.frames = frames;
     }
 
     pub fn tick(
@@ -63,7 +78,7 @@ impl Spinner {
         theme: &ColorTheme,
         out: &mut impl Write,
     ) -> io::Result<()> {
-        let frame = Self::FRAMES[self.frame_index % Self::FRAMES.len()];
+        let frame = self.frames[self.frame_index % self.frames.len()];
         self.frame_index += 1;
         queue!(
             out,
