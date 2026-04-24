@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 
 from .commands import PORTED_COMMANDS, execute_command
@@ -29,23 +30,38 @@ class ExecutionRegistry:
     commands: tuple[MirroredCommand, ...]
     tools: tuple[MirroredTool, ...]
 
-    def command(self, name: str) -> MirroredCommand | None:
-        lowered = name.lower()
+    @functools.cached_property
+    def _command_lookup(self) -> dict[str, MirroredCommand]:
+        lookup = {}
         for command in self.commands:
-            if command.name.lower() == lowered:
-                return command
-        return None
+            lowered = command.name.lower()
+            if lowered not in lookup:
+                lookup[lowered] = command
+        return lookup
+
+    def command(self, name: str) -> MirroredCommand | None:
+        return self._command_lookup.get(name.lower())
+
+    @functools.cached_property
+    def _tool_lookup(self) -> dict[str, MirroredTool]:
+        lookup = {}
+        for tool in self.tools:
+            lowered = tool.name.lower()
+            if lowered not in lookup:
+                lookup[lowered] = tool
+        return lookup
 
     def tool(self, name: str) -> MirroredTool | None:
-        lowered = name.lower()
-        for tool in self.tools:
-            if tool.name.lower() == lowered:
-                return tool
-        return None
+        return self._tool_lookup.get(name.lower())
 
 
 def build_execution_registry() -> ExecutionRegistry:
     return ExecutionRegistry(
-        commands=tuple(MirroredCommand(module.name, module.source_hint) for module in PORTED_COMMANDS),
-        tools=tuple(MirroredTool(module.name, module.source_hint) for module in PORTED_TOOLS),
+        commands=tuple(
+            MirroredCommand(module.name, module.source_hint)
+            for module in PORTED_COMMANDS
+        ),
+        tools=tuple(
+            MirroredTool(module.name, module.source_hint) for module in PORTED_TOOLS
+        ),
     )
