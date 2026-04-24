@@ -1,0 +1,15 @@
+--- rust/crates/tools/src/pdf_extract.rs
++++ rust/crates/tools/src/pdf_extract.rs
+@@ -404,4 +404,12 @@
+         // cleanup
+         let _ = std::fs::remove_dir_all(&dir);
+     }
++
++    #[test]
++    fn extract_text_returns_error_for_nonexistent_file() {
++        let path = Path::new("/this/path/does/not/exist.pdf");
++        let result = extract_text(path);
++        assert!(result.is_err());
++        assert!(result.unwrap_err().starts_with("failed to read PDF:"));
++    }
+ }
