@@ -1,0 +1,3 @@
+🎯 **What:** Adds a missing error path test for `extract_manifest` in `compat-harness` when provided with non-existent paths.
+📊 **Coverage:** The scenario where the upstream workspace or repository paths do not exist and `fs::read_to_string` fails is now tested to ensure it returns a `NotFound` error.
+✨ **Result:** Improved test coverage and reliability for path resolution failure modes.
