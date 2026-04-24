@@ -1,16 +1,18 @@
 import sys
 
+
 def replace_in_file(filepath, search_str, replace_str):
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         content = f.read()
 
     if search_str in content:
         content = content.replace(search_str, replace_str)
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             f.write(content)
         print("Replacement successful.")
     else:
         print("Search string not found.")
+
 
 search = """fn agent_detail(agent: &AgentSummary) -> String {
     let mut parts = vec![agent.name.as_str()];
@@ -39,4 +41,4 @@ replace = """fn agent_detail(agent: &AgentSummary) -> String {
     parts.join(" · ")
 }"""
 
-replace_in_file('rust/crates/commands/src/lib.rs', search, replace)
+replace_in_file("rust/crates/commands/src/lib.rs", search, replace)
