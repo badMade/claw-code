@@ -66,9 +66,11 @@ def main() -> int:
 
     should_run = "--no-run" not in sys.argv[1:]
     report = run_harness(rust_root) if should_run else None
-    report_by_name = {
-        entry["name"]: entry for entry in report.get("scenarios", [])
-    } if report else {}
+    report_by_name = (
+        {entry["name"]: entry for entry in report.get("scenarios", [])}
+        if report
+        else {}
+    )
 
     print("Mock parity diff checklist")
     print(f"Repo root: {repo_root}")
@@ -79,7 +81,9 @@ def main() -> int:
     for entry in manifest:
         scenario_name = entry["name"]
         scenario_report = report_by_name.get(scenario_name)
-        status = "PASS" if scenario_report else ("MAPPED" if not should_run else "MISSING")
+        status = (
+            "PASS" if scenario_report else ("MAPPED" if not should_run else "MISSING")
+        )
         print(f"[{status}] {scenario_name} ({entry['category']})")
         print(f"  description: {entry['description']}")
         print(f"  parity refs: {' | '.join(entry['parity_refs'])}")
