@@ -6533,12 +6533,9 @@ impl AnthropicRuntimeClient {
                                 [reasoning_frame_idx % Spinner::REASONING_FRAMES.len()];
                             reasoning_frame_idx += 1;
 
-                            write!(
-                                out,
-                                "\r\x1b[2K\x1b[38;5;208m{frame} Reasoning...\x1b[0m"
-                            )
-                            .and_then(|()| out.flush())
-                            .map_err(|error| RuntimeError::new(error.to_string()))?;
+                            write!(out, "\r\x1b[2K\x1b[38;5;208m{frame} Reasoning...\x1b[0m")
+                                .and_then(|()| out.flush())
+                                .map_err(|error| RuntimeError::new(error.to_string()))?;
                         }
                     }
                     ContentBlockDelta::SignatureDelta { .. } => {}
