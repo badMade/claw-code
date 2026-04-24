@@ -6453,6 +6453,7 @@ impl AnthropicRuntimeClient {
         let mut events = Vec::new();
         let mut pending_tool: Option<(String, String, String)> = None;
         let mut block_has_thinking_summary = false;
+        let mut reasoning_frame_idx = 0;
         let mut saw_stop = false;
         let mut received_any_event = false;
 
@@ -6523,14 +6524,33 @@ impl AnthropicRuntimeClient {
                     }
                     ContentBlockDelta::ThinkingDelta { .. } => {
                         if !block_has_thinking_summary {
-                            render_thinking_block_summary(out, None, false)?;
+                            // We do NOT render the static block summary here anymore,
+                            // we just start animating the reasoning spinner.
                             block_has_thinking_summary = true;
+                        }
+                        if self.emit_output {
+                            let frame = Spinner::REASONING_FRAMES
+                                [reasoning_frame_idx % Spinner::REASONING_FRAMES.len()];
+                            reasoning_frame_idx += 1;
+
+                            write!(out, "\r\x1b[2K\x1b[38;5;208m{frame} Reasoning...\x1b[0m")
+                                .and_then(|()| out.flush())
+                                .map_err(|error| RuntimeError::new(error.to_string()))?;
                         }
                     }
                     ContentBlockDelta::SignatureDelta { .. } => {}
                 },
                 ApiStreamEvent::ContentBlockStop(_) => {
-                    block_has_thinking_summary = false;
+                    if block_has_thinking_summary {
+                        if self.emit_output {
+                            // Clear the animated reasoning line
+                            write!(out, "\r\x1b[2K")
+                                .and_then(|()| out.flush())
+                                .map_err(|error| RuntimeError::new(error.to_string()))?;
+                        }
+                        block_has_thinking_summary = false;
+                    }
+
                     if let Some(rendered) = markdown_stream.flush(&renderer) {
                         write!(out, "{rendered}")
                             .and_then(|()| out.flush())
@@ -7285,11 +7305,11 @@ fn render_thinking_block_summary(
     redacted: bool,
 ) -> Result<(), RuntimeError> {
     let summary = if redacted {
-        "\n▶ Thinking block hidden by provider\n".to_string()
+        "\n🧠 Reasoning block hidden by provider\n".to_string()
     } else if let Some(char_count) = char_count {
-        format!("\n▶ Thinking ({char_count} chars hidden)\n")
+        format!("\n🧠 Reasoning ({char_count} chars hidden)\n")
     } else {
-        "\n▶ Thinking hidden\n".to_string()
+        "\n🧠 Reasoning hidden\n".to_string()
     };
     write!(out, "{summary}")
         .and_then(|()| out.flush())
@@ -10598,7 +10618,7 @@ UU conflicted.rs",
             AssistantEvent::TextDelta(text) if text == "Final answer"
         ));
         let rendered = String::from_utf8(out).expect("utf8");
-        assert!(rendered.contains("▶ Thinking (6 chars hidden)"));
+        assert!(rendered.contains("🧠 Reasoning (6 chars hidden)"));
         assert!(!rendered.contains("step 1"));
     }
 

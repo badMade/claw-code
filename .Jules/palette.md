@@ -1,0 +1,3 @@
+## 2026-04-12 - Dynamic Stream Spinners without Background Threads
+**Learning:** The CLI rendering loop in `rusty-claude-cli` (`LiveCli::run_turn`) does not use a background heartbeat thread for the primary spinner, making standard frame animation impossible without structural threading changes. However, the streaming event loop (`consume_stream`) runs continuously and streams characters to `stdout`.
+**Action:** When adding or modifying animated CLI indicators during streaming, emit ANSI escape sequences (`\r\x1b[2K` to clear the line and move carriage return) directly inline within the `ApiStreamEvent` processor loop instead of trying to shoehorn async background threads into synchronous rendering paths.
