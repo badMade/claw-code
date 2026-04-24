@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import unittest.mock
 from src.tools import (
     load_tool_snapshot,
     build_tool_backlog,
@@ -64,34 +65,50 @@ class TestTools(unittest.TestCase):
         self.assertEqual(len(filtered), len(tools) - 1)
         self.assertNotIn(tools[0], filtered)
 
-    def test_get_tools(self) -> None:
+
+
+
+    @unittest.mock.patch('src.tools.PORTED_TOOLS')
+    def test_get_tools_with_mocks(self, mock_ported_tools) -> None:
+        mock_tools = (
+            PortingModule(name="BashTool", responsibility="", source_hint="", status="mirrored"),
+            PortingModule(name="FileReadTool", responsibility="", source_hint="", status="mirrored"),
+            PortingModule(name="SomeMCPTool", responsibility="", source_hint="mcp", status="mirrored"),
+            PortingModule(name="AnotherTool", responsibility="", source_hint="other", status="mirrored"),
+            PortingModule(name="McpAuthTool", responsibility="", source_hint="other", status="mirrored"),
+        )
+        mock_ported_tools.__iter__.side_effect = lambda: iter(mock_tools)
+
         # Default
         all_tools = get_tools()
-        self.assertEqual(len(all_tools), len(PORTED_TOOLS))
+        self.assertEqual(len(all_tools), 5)
 
         # simple_mode
-        simple_mode_names = {'BashTool', 'FileReadTool', 'FileEditTool'}
-        expected_simple_names = {t.name for t in PORTED_TOOLS if t.name in simple_mode_names}
         simple_tools = get_tools(simple_mode=True)
-        simple_tool_names = {tool.name for tool in simple_tools}
-        self.assertEqual(simple_tool_names, expected_simple_names)
+        self.assertEqual({t.name for t in simple_tools}, {"BashTool", "FileReadTool"})
 
         # include_mcp=False
-        # First, find if there are any MCP tools to test the filter
-        mcp_tools = [t for t in PORTED_TOOLS if 'mcp' in t.name.lower() or 'mcp' in t.source_hint.lower()]
-        if mcp_tools:
-            no_mcp_tools = get_tools(include_mcp=False)
-            self.assertTrue(len(no_mcp_tools) < len(PORTED_TOOLS))
-            for tool in no_mcp_tools:
-                self.assertNotIn('mcp', tool.name.lower())
-                self.assertNotIn('mcp', tool.source_hint.lower())
+        no_mcp_tools = get_tools(include_mcp=False)
+        self.assertEqual({t.name for t in no_mcp_tools}, {"BashTool", "FileReadTool", "AnotherTool"})
 
-        # With permission context
-        if len(PORTED_TOOLS) > 0:
-            deny_name = PORTED_TOOLS[0].name
-            context = ToolPermissionContext.from_iterables(deny_names=[deny_name])
-            filtered = get_tools(permission_context=context)
-            self.assertNotIn(PORTED_TOOLS[0], filtered)
+        # Permission Context
+        context = ToolPermissionContext.from_iterables(deny_names=["AnotherTool"])
+        filtered = get_tools(permission_context=context)
+        self.assertEqual(len(filtered), 4)
+        self.assertNotIn("AnotherTool", {t.name for t in filtered})
+
+        # Combine simple_mode and permission_context
+        filtered_simple = get_tools(simple_mode=True, permission_context=ToolPermissionContext.from_iterables(deny_names=["BashTool"]))
+        self.assertEqual({t.name for t in filtered_simple}, {"FileReadTool"})
+
+        # Context with prefix
+        context_prefix = ToolPermissionContext.from_iterables(deny_prefixes=["Mcp"])
+        no_mcp_prefix = get_tools(permission_context=context_prefix)
+        self.assertEqual({t.name for t in no_mcp_prefix}, {"BashTool", "FileReadTool", "AnotherTool", "SomeMCPTool"})
+
+        # Combine all
+        all_filtered = get_tools(simple_mode=False, include_mcp=False, permission_context=context_prefix)
+        self.assertEqual({t.name for t in all_filtered}, {"BashTool", "FileReadTool", "AnotherTool"})
 
     def test_find_tools(self) -> None:
         if not PORTED_TOOLS:
