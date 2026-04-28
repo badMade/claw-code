@@ -7,10 +7,10 @@
 - **Acceptance criteria:** All references and tests use the corrected token; no behavior changes beyond identifier consistency.
 
 ## 2) Bug fix task
-- **Issue:** `src.main` ignores `--no-plugin-commands` and `--no-skill-commands` when `commands --query ...` is used, because the query path calls `render_command_index(...)` directly without applying the include/exclude filters.
+- **Issue:** `src.main` ignores filtering flags (e.g., `--no-plugin-commands`, `--no-skill-commands` for `commands`; `--simple-mode`, `--no-mcp`, `--deny-tool` for `tools`) when `--query ...` is used. This happens because the query paths call `render_command_index(...)` or `render_tool_index(...)` directly without applying the include/exclude filters.
 - **Impact:** CLI behavior is inconsistent and user-provided filtering flags are silently ignored for query usage.
-- **Task proposal:** Refactor command index rendering so query and non-query paths share the same filtered command source (e.g., `get_commands(...)` first, then apply query search over that filtered set).
-- **Acceptance criteria:** `commands --query X --no-plugin-commands` and `commands --query X --no-skill-commands` produce outputs that respect each exclusion flag.
+- **Task proposal:** Refactor command and tool index rendering so query and non-query paths share the same filtered source (e.g., call `get_commands(...)`/`get_tools(...)` first, then apply query search over that filtered set).
+- **Acceptance criteria:** `commands --query X --no-plugin-commands` and `tools --query Y --no-mcp` produce outputs that respect each exclusion flag.
 
 ## 3) Code comment/documentation discrepancy task
 - **Issue:** The lane completion module-level docs say completion is detected when "Code pushed (has output file)", but `detect_lane_completion(...)` does not inspect `output_file`; it only trusts the external boolean `has_pushed`.
