@@ -1,10 +1,10 @@
 # Codebase issue scan: proposed fix tasks
 
-## 1) Typo fix task
-- **Issue:** The HTTP user agent string uses `clawd-rust-tools/0.1`, which appears to be a spelling drift from the repository/product naming (`claw`).
-- **Impact:** Inconsistent telemetry/log tagging and harder grep/observability across services when searching for `claw` identifiers.
-- **Task proposal:** Rename the user-agent token to `claw-rust-tools/0.1` (or a centrally-defined crate/version-derived user-agent constant) and update any tests that assert the old literal.
-- **Acceptance criteria:** All references and tests use the corrected token; no behavior changes beyond identifier consistency.
+## 1) Naming consistency task
+- **Issue:** The HTTP user agent string uses `clawd-rust-tools/0.1`, while the codebase appears to use a mix of `claw*` and `clawd*` identifiers across repository/product naming, telemetry, env vars, and file prefixes.
+- **Impact:** Inconsistent telemetry/log tagging and harder grep/observability across services when searching for either `claw` or `clawd` identifiers.
+- **Task proposal:** Decide on the intended prefix convention for these identifiers (`claw*` vs `clawd*`), update the user-agent token to match that convention (ideally via a centrally-defined crate/version-derived user-agent constant), and update any tests that assert the old literal.
+- **Acceptance criteria:** The chosen naming convention is applied consistently to the user-agent token and any related references/tests updated by this task; no behavior changes beyond identifier consistency.
 
 ## 2) Bug fix task
 - **Issue:** `src.main` ignores filtering flags (e.g., `--no-plugin-commands`, `--no-skill-commands` for `commands`; `--simple-mode`, `--no-mcp`, `--deny-tool` for `tools`) when `--query ...` is used. This happens because the query paths call `render_command_index(...)` or `render_tool_index(...)` directly without applying the include/exclude filters.
