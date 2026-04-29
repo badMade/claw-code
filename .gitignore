@@ -9,6 +9,7 @@ target/
 # Claude Code local artifacts (not shared)
 .claude/settings.local.json
 .claude/sessions/
+.port_sessions/
 
 # Session store artifacts
 .port_sessions/
@@ -20,3 +21,4 @@ target/
 .DS_Store
 .vscode/
 .idea/
+.port_sessions/

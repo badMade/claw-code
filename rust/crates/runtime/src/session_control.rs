@@ -389,6 +389,14 @@ pub fn create_managed_session_handle_for(
     Ok(SessionHandle { id, path })
 }
 
+#[must_use]
+pub fn is_valid_session_id(session_id: &str) -> bool {
+    if session_id.is_empty() || session_id == "." || session_id.contains("..") {
+        return false;
+    }
+    !session_id.contains(['/', '\\'])
+}
+
 pub fn resolve_session_reference(reference: &str) -> Result<SessionHandle, SessionControlError> {
     resolve_session_reference_for(env::current_dir()?, reference)
 }
