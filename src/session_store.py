@@ -13,19 +13,25 @@ class StoredSession:
     output_tokens: int
 
 
-DEFAULT_SESSION_DIR = Path('.port_sessions')
+DEFAULT_SESSION_DIR = Path(".port_sessions")
 
 
 def validate_session_id(session_id: str) -> None:
-    if "/" in session_id or "\\" in session_id or ".." in session_id or session_id in (".", ".."):
-        raise ValueError(f"Invalid session ID: {session_id}")
+    if not session_id:
+        raise ValueError("Invalid session ID: cannot be empty")
+    if "/" in session_id or "\\" in session_id:
+        raise ValueError("Invalid session ID: contains path separators")
+    if session_id in (".", ".."):
+        raise ValueError("Invalid session ID: cannot be '.' or '..'")
+    if ".." in session_id:
+        raise ValueError("Invalid session ID: contains directory traversal ('..')")
 
 
 def save_session(session: StoredSession, directory: Path | None = None) -> Path:
     validate_session_id(session.session_id)
     target_dir = directory or DEFAULT_SESSION_DIR
     target_dir.mkdir(parents=True, exist_ok=True)
-    path = target_dir / f'{session.session_id}.json'
+    path = target_dir / f"{session.session_id}.json"
     path.write_text(json.dumps(asdict(session), indent=2))
     return path
 
@@ -33,10 +39,10 @@ def save_session(session: StoredSession, directory: Path | None = None) -> Path:
 def load_session(session_id: str, directory: Path | None = None) -> StoredSession:
     validate_session_id(session_id)
     target_dir = directory or DEFAULT_SESSION_DIR
-    data = json.loads((target_dir / f'{session_id}.json').read_text())
+    data = json.loads((target_dir / f"{session_id}.json").read_text())
     return StoredSession(
-        session_id=data['session_id'],
-        messages=tuple(data['messages']),
-        input_tokens=data['input_tokens'],
-        output_tokens=data['output_tokens'],
+        session_id=data["session_id"],
+        messages=tuple(data["messages"]),
+        input_tokens=data["input_tokens"],
+        output_tokens=data["output_tokens"],
     )
