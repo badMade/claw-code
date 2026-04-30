@@ -354,4 +354,12 @@ mod tests {
         assert!(names.contains(&"AgentTool"));
         assert!(names.contains(&"BashTool"));
     }
+
+    #[test]
+    fn extract_manifest_returns_error_for_invalid_paths() {
+        let paths = UpstreamPaths::from_repo_root("/this_directory_does_not_exist_12345");
+        let result = extract_manifest(&paths);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+    }
 }
