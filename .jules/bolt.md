@@ -2,7 +2,6 @@
 **Learning:** In Rust, building lists of string parts for joining (e.g., `vec![string1.clone(), string2.clone()].join(" ")`) is a common pattern that can lead to unnecessary heap allocations. This codebase frequently does this when formatting reports. When the source values are already `String`s, borrowing them as `&str` and pushing them to a `Vec<&str>` before calling `.join()` entirely avoids these intermediate heap allocations. Additionally, calling `.to_string()` on static string slices just to appease a `Vec<String>` is wasteful when `Vec<&str>` works perfectly.
 **Action:** When constructing strings from parts using `Vec` and `.join()`, look for opportunities to use a `Vec<&str>` populated with borrowed string slices (`.as_str()`) instead of a `Vec<String>` populated with cloned strings (`.clone()`).
 
-## 2024-05-18 - Optimized get_tool function in src/tools.py
-
-- Replaced O(N) lookup loop in `get_tool` with an O(1) dictionary lookup, using `lru_cache` and `MappingProxyType`.
-- Maintained first-match priority for duplicates.
+## 2026-04-29 - Python Dictionary Lookup Optimization for Lists
+**Learning:** O(N) linear scans on static lists inside frequently called functions (e.g., `get_tool`) are a performance hazard. A `lru_cache(maxsize=1)` dictionary lookup wrapped in `MappingProxyType` to prevent modification is a simple and extremely effective optimization technique that reduces complexity from O(N) to O(1) and eliminates repeated loop and string allocations. We must be mindful when mapping non-unique elements. Preserving first-match behavior requires `if key not in lookup:` during the dictionary's initial lazy-loading map phase.
+**Action:** Always favor lazily initialized cached dictionary lookups over list iteration when retrieving elements from static datasets by string keys.

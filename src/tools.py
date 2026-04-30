@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
 from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
 
 from .models import PortingBacklog, PortingModule
 from .permissions import ToolPermissionContext
