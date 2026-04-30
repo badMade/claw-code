@@ -1,5 +1,5 @@
 use std::fmt::Write as FmtWrite;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
 use crossterm::cursor::{Hide, MoveToColumn, RestorePosition, SavePosition, Show};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor, Stylize};
@@ -47,6 +47,7 @@ impl Default for ColorTheme {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Spinner {
     frame_index: usize,
+    cursor_hidden: bool,
 }
 
 impl Spinner {
@@ -76,6 +77,7 @@ impl Spinner {
             ResetColor,
             RestorePosition
         )?;
+        self.cursor_hidden = true;
         out.flush()
     }
 
@@ -86,6 +88,7 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
+        self.cursor_hidden = false;
         execute!(
             out,
             Show,
@@ -105,6 +108,7 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
+        self.cursor_hidden = false;
         execute!(
             out,
             Show,
@@ -120,7 +124,9 @@ impl Spinner {
 
 impl Drop for Spinner {
     fn drop(&mut self) {
-        let _ = execute!(io::stdout(), Show);
+        if self.cursor_hidden && io::stdout().is_terminal() {
+            let _ = execute!(io::stdout(), Show);
+        }
     }
 }
 
@@ -1068,8 +1074,13 @@ mod tests {
         spinner
             .tick("Working", terminal_renderer.color_theme(), &mut out)
             .expect("tick succeeds");
+        spinner
+            .finish("Done", terminal_renderer.color_theme(), &mut out)
+            .expect("finish succeeds");
 
         let output = String::from_utf8_lossy(&out);
         assert!(output.contains("Working"));
+        assert!(output.contains("\u{1b}[?25l"));
+        assert!(output.contains("\u{1b}[?25h"));
     }
 }
