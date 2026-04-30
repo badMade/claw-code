@@ -1,3 +1,7 @@
 ## 2024-04-09 - Rust String Cloning Optimization
 **Learning:** In Rust, building lists of string parts for joining (e.g., `vec![string1.clone(), string2.clone()].join(" ")`) is a common pattern that can lead to unnecessary heap allocations. This codebase frequently does this when formatting reports. When the source values are already `String`s, borrowing them as `&str` and pushing them to a `Vec<&str>` before calling `.join()` entirely avoids these intermediate heap allocations. Additionally, calling `.to_string()` on static string slices just to appease a `Vec<String>` is wasteful when `Vec<&str>` works perfectly.
 **Action:** When constructing strings from parts using `Vec` and `.join()`, look for opportunities to use a `Vec<&str>` populated with borrowed string slices (`.as_str()`) instead of a `Vec<String>` populated with cloned strings (`.clone()`).
+## 2026-04-30 - Fix `__pycache__` filtering in `build_port_manifest`
+- **Context:** When running `build_port_manifest`, testing showed that `__pycache__` files were being successfully ignored in the `Counter` object but not from `total_python_files`.
+- **Learning:** `path.rglob('*.py')` returns paths like `__pycache__/file.py`, which have a `.name` of `file.py`. Using `if path.name != '__pycache__'` on files will always evaluate to `True` for `__pycache__` contents.
+- **Solution:** Filter `__pycache__` from `path.parts` instead of checking `path.name`.
