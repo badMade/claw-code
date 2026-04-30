@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 from src.tools import (
     load_tool_snapshot,
     build_tool_backlog,
@@ -11,7 +12,7 @@ from src.tools import (
     find_tools,
     execute_tool,
     render_tool_index,
-    PORTED_TOOLS
+    PORTED_TOOLS,
 )
 from src.models import PortingBacklog, PortingModule
 from src.permissions import ToolPermissionContext
@@ -24,12 +25,12 @@ class TestTools(unittest.TestCase):
         self.assertTrue(len(tools) > 0)
         for tool in tools:
             self.assertIsInstance(tool, PortingModule)
-            self.assertEqual(tool.status, 'mirrored')
+            self.assertEqual(tool.status, "mirrored")
 
     def test_build_tool_backlog(self) -> None:
         backlog = build_tool_backlog()
         self.assertIsInstance(backlog, PortingBacklog)
-        self.assertEqual(backlog.title, 'Tool surface')
+        self.assertEqual(backlog.title, "Tool surface")
         self.assertEqual(len(backlog.modules), len(PORTED_TOOLS))
         self.assertEqual(backlog.modules, list(PORTED_TOOLS))
 
@@ -70,21 +71,27 @@ class TestTools(unittest.TestCase):
         self.assertEqual(len(all_tools), len(PORTED_TOOLS))
 
         # simple_mode
-        simple_mode_names = {'BashTool', 'FileReadTool', 'FileEditTool'}
-        expected_simple_names = {t.name for t in PORTED_TOOLS if t.name in simple_mode_names}
+        simple_mode_names = {"BashTool", "FileReadTool", "FileEditTool"}
+        expected_simple_names = {
+            t.name for t in PORTED_TOOLS if t.name in simple_mode_names
+        }
         simple_tools = get_tools(simple_mode=True)
         simple_tool_names = {tool.name for tool in simple_tools}
         self.assertEqual(simple_tool_names, expected_simple_names)
 
         # include_mcp=False
         # First, find if there are any MCP tools to test the filter
-        mcp_tools = [t for t in PORTED_TOOLS if 'mcp' in t.name.lower() or 'mcp' in t.source_hint.lower()]
+        mcp_tools = [
+            t
+            for t in PORTED_TOOLS
+            if "mcp" in t.name.lower() or "mcp" in t.source_hint.lower()
+        ]
         if mcp_tools:
             no_mcp_tools = get_tools(include_mcp=False)
             self.assertTrue(len(no_mcp_tools) < len(PORTED_TOOLS))
             for tool in no_mcp_tools:
-                self.assertNotIn('mcp', tool.name.lower())
-                self.assertNotIn('mcp', tool.source_hint.lower())
+                self.assertNotIn("mcp", tool.name.lower())
+                self.assertNotIn("mcp", tool.source_hint.lower())
 
         # With permission context
         if len(PORTED_TOOLS) > 0:
@@ -146,5 +153,81 @@ class TestTools(unittest.TestCase):
         self.assertIn(f"Filtered by: {tool.name}", output)
         self.assertIn(tool.name, output)
 
-if __name__ == '__main__':
+
+class TestGetTool(unittest.TestCase):
+    def setUp(self):
+        self.dummy_modules = (
+            PortingModule(
+                name="ToolA", responsibility="A", source_hint="hintA", status="planned"
+            ),
+            PortingModule(
+                name="ToolB", responsibility="B", source_hint="hintB", status="planned"
+            ),
+            PortingModule(
+                name="ToolC", responsibility="C", source_hint="hintC", status="planned"
+            ),
+        )
+
+    def test_empty_list(self):
+        with patch("src.tools.PORTED_TOOLS", ()):
+            self.assertIsNone(get_tool("ToolA"))
+
+    def test_no_match(self):
+        with patch("src.tools.PORTED_TOOLS", self.dummy_modules):
+            self.assertIsNone(get_tool("NonExistentTool"))
+
+    def test_single_match(self):
+        with patch("src.tools.PORTED_TOOLS", self.dummy_modules):
+            result = get_tool("ToolB")
+            self.assertIsNotNone(result)
+            self.assertEqual(result.name, "ToolB")
+
+    def test_case_insensitive_match(self):
+        with patch("src.tools.PORTED_TOOLS", self.dummy_modules):
+            result = get_tool("toOLb")
+            self.assertIsNotNone(result)
+            self.assertEqual(result.name, "ToolB")
+
+    def test_first_match_wins_same_case(self):
+        duplicates = (
+            PortingModule(
+                name="ToolA",
+                responsibility="First A",
+                source_hint="hint1",
+                status="planned",
+            ),
+            PortingModule(
+                name="ToolA",
+                responsibility="Second A",
+                source_hint="hint2",
+                status="planned",
+            ),
+        )
+        with patch("src.tools.PORTED_TOOLS", duplicates):
+            result = get_tool("ToolA")
+            self.assertIsNotNone(result)
+            self.assertEqual(result.responsibility, "First A")
+
+    def test_first_match_wins_different_case(self):
+        duplicates_mixed_case = (
+            PortingModule(
+                name="TOOLA",
+                responsibility="Uppercase A",
+                source_hint="hint1",
+                status="planned",
+            ),
+            PortingModule(
+                name="toola",
+                responsibility="Lowercase A",
+                source_hint="hint2",
+                status="planned",
+            ),
+        )
+        with patch("src.tools.PORTED_TOOLS", duplicates_mixed_case):
+            result = get_tool("tooLA")
+            self.assertIsNotNone(result)
+            self.assertEqual(result.responsibility, "Uppercase A")
+
+
+if __name__ == "__main__":
     unittest.main()
