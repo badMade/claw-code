@@ -11,3 +11,7 @@ By extracting and caching the iteration results into tuple variables upfront, su
 
 **Prevention:**
 Always inspect blocks where identical or highly similar comprehensions iterate over the same list and pass arguments. Consolidate these evaluations to run exactly once.
+
+## 2026-04-29 - Python Dictionary Lookup Optimization for Lists
+**Learning:** O(N) linear scans on static lists inside frequently called functions (e.g., `get_tool`) are a performance hazard. A `lru_cache(maxsize=1)` dictionary lookup wrapped in `MappingProxyType` to prevent modification is a simple and extremely effective optimization technique that reduces complexity from O(N) to O(1) and eliminates repeated loop and string allocations. We must be mindful when mapping non-unique elements. Preserving first-match behavior requires `if key not in lookup:` during the dictionary's initial lazy-loading map phase.
+**Action:** Always favor lazily initialized cached dictionary lookups over list iteration when retrieving elements from static datasets by string keys.

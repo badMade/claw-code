@@ -132,14 +132,14 @@ class PortRuntime:
         )
         matched_tools = tuple(match.name for match in matches if match.kind == "tool")
         command_execs = tuple(
-            registry.command(name).execute(prompt)
+            command.execute(prompt)
             for name in matched_commands
-            if registry.command(name)
+            if (command := registry.command(name)) is not None
         )
         tool_execs = tuple(
-            registry.tool(name).execute(prompt)
+            tool.execute(prompt)
             for name in matched_tools
-            if registry.tool(name)
+            if (tool := registry.tool(name)) is not None
         )
         denials = tuple(self._infer_permission_denials(matches))
         stream_events = tuple(
