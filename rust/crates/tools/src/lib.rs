@@ -5151,7 +5151,9 @@ fn detect_powershell_shell() -> std::io::Result<&'static str> {
 fn command_exists(command: &str) -> bool {
     std::process::Command::new("sh")
         .arg("-c")
-        .arg(format!("command -v {command} >/dev/null 2>&1"))
+        .arg("command -v \"$1\" >/dev/null 2>&1")
+        .arg("--")
+        .arg(command)
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
@@ -5351,6 +5353,22 @@ pub mod pdf_extract;
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn test_command_exists_valid() {
+        assert!(super::command_exists("ls") || super::command_exists("dir"));
+    }
+
+    #[test]
+    fn test_command_exists_invalid() {
+        assert!(!super::command_exists("nonexistentcommandthatshouldneverexist123"));
+    }
+
+    #[test]
+    fn test_command_exists_injection() {
+        assert!(!super::command_exists("ls; echo injected"));
+        assert!(!super::command_exists("ls && echo injected"));
+    }
     use std::collections::BTreeMap;
     use std::collections::BTreeSet;
     use std::fs;
