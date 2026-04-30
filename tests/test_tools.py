@@ -65,11 +65,7 @@ class TestTools(unittest.TestCase):
         self.assertEqual(len(filtered), len(tools) - 1)
         self.assertNotIn(tools[0], filtered)
 
-
-
-
-    @unittest.mock.patch('src.tools.PORTED_TOOLS')
-    def test_get_tools_with_mocks(self, mock_ported_tools) -> None:
+    def test_get_tools_with_mocks(self) -> None:
         mock_tools = (
             PortingModule(name="BashTool", responsibility="", source_hint="", status="mirrored"),
             PortingModule(name="FileReadTool", responsibility="", source_hint="", status="mirrored"),
@@ -77,38 +73,38 @@ class TestTools(unittest.TestCase):
             PortingModule(name="AnotherTool", responsibility="", source_hint="other", status="mirrored"),
             PortingModule(name="McpAuthTool", responsibility="", source_hint="other", status="mirrored"),
         )
-        mock_ported_tools.__iter__.side_effect = lambda: iter(mock_tools)
+        with unittest.mock.patch('src.tools.PORTED_TOOLS', mock_tools):
+            # Default
+            all_tools = get_tools()
+            self.assertEqual(len(all_tools), 5)
 
-        # Default
-        all_tools = get_tools()
-        self.assertEqual(len(all_tools), 5)
+            # simple_mode
+            simple_tools = get_tools(simple_mode=True)
+            self.assertEqual({t.name for t in simple_tools}, {"BashTool", "FileReadTool"})
 
-        # simple_mode
-        simple_tools = get_tools(simple_mode=True)
-        self.assertEqual({t.name for t in simple_tools}, {"BashTool", "FileReadTool"})
+            # include_mcp=False
+            no_mcp_tools = get_tools(include_mcp=False)
+            self.assertEqual({t.name for t in no_mcp_tools}, {"BashTool", "FileReadTool", "AnotherTool"})
 
-        # include_mcp=False
-        no_mcp_tools = get_tools(include_mcp=False)
-        self.assertEqual({t.name for t in no_mcp_tools}, {"BashTool", "FileReadTool", "AnotherTool"})
+            # Permission Context
+            context = ToolPermissionContext.from_iterables(deny_names=["AnotherTool"])
+            filtered = get_tools(permission_context=context)
+            self.assertEqual(len(filtered), 4)
+            self.assertNotIn("AnotherTool", {t.name for t in filtered})
 
-        # Permission Context
-        context = ToolPermissionContext.from_iterables(deny_names=["AnotherTool"])
-        filtered = get_tools(permission_context=context)
-        self.assertEqual(len(filtered), 4)
-        self.assertNotIn("AnotherTool", {t.name for t in filtered})
+            # Combine simple_mode and permission_context
+            filtered_simple = get_tools(simple_mode=True, permission_context=ToolPermissionContext.from_iterables(deny_names=["BashTool"]))
+            self.assertEqual({t.name for t in filtered_simple}, {"FileReadTool"})
 
-        # Combine simple_mode and permission_context
-        filtered_simple = get_tools(simple_mode=True, permission_context=ToolPermissionContext.from_iterables(deny_names=["BashTool"]))
-        self.assertEqual({t.name for t in filtered_simple}, {"FileReadTool"})
+            # Context with prefix
+            context_prefix = ToolPermissionContext.from_iterables(deny_prefixes=["Mcp"])
+            no_mcp_prefix = get_tools(permission_context=context_prefix)
+            self.assertEqual({t.name for t in no_mcp_prefix}, {"BashTool", "FileReadTool", "AnotherTool", "SomeMCPTool"})
 
-        # Context with prefix
-        context_prefix = ToolPermissionContext.from_iterables(deny_prefixes=["Mcp"])
-        no_mcp_prefix = get_tools(permission_context=context_prefix)
-        self.assertEqual({t.name for t in no_mcp_prefix}, {"BashTool", "FileReadTool", "AnotherTool", "SomeMCPTool"})
+            # Combine all
+            all_filtered = get_tools(simple_mode=False, include_mcp=False, permission_context=context_prefix)
+            self.assertEqual({t.name for t in all_filtered}, {"BashTool", "FileReadTool", "AnotherTool"})
 
-        # Combine all
-        all_filtered = get_tools(simple_mode=False, include_mcp=False, permission_context=context_prefix)
-        self.assertEqual({t.name for t in all_filtered}, {"BashTool", "FileReadTool", "AnotherTool"})
 
     def test_find_tools(self) -> None:
         if not PORTED_TOOLS:
