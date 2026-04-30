@@ -5361,7 +5361,9 @@ mod tests {
 
     #[test]
     fn test_command_exists_invalid() {
-        assert!(!super::command_exists("nonexistentcommandthatshouldneverexist123"));
+        assert!(!super::command_exists(
+            "nonexistentcommandthatshouldneverexist123"
+        ));
     }
 
     #[test]
