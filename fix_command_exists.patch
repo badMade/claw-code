@@ -1,0 +1,14 @@
+--- rust/crates/tools/src/lib.rs
++++ rust/crates/tools/src/lib.rs
+@@ -5150,8 +5150,9 @@
+
+ fn command_exists(command: &str) -> bool {
+     std::process::Command::new("sh")
+         .arg("-c")
+-        .arg(format!("command -v {command} >/dev/null 2>&1"))
++        .arg("command -v \"$1\" >/dev/null 2>&1")
++        .arg("--")
++        .arg(command)
+         .status()
+         .map(|status| status.success())
+         .unwrap_or(false)
