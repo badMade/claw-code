@@ -116,19 +116,21 @@ class PortRuntime:
         history.add('registry', f'commands={len(PORTED_COMMANDS)}, tools={len(PORTED_TOOLS)}')
         matches = self.route_prompt(prompt, limit=limit)
         registry = build_execution_registry()
-        command_execs = tuple(registry.command(match.name).execute(prompt) for match in matches if match.kind == 'command' and registry.command(match.name))
-        tool_execs = tuple(registry.tool(match.name).execute(prompt) for match in matches if match.kind == 'tool' and registry.tool(match.name))
+        matched_commands = tuple(match.name for match in matches if match.kind == 'command')
+        matched_tools = tuple(match.name for match in matches if match.kind == 'tool')
+        command_execs = tuple(registry.command(name).execute(prompt) for name in matched_commands if registry.command(name))
+        tool_execs = tuple(registry.tool(name).execute(prompt) for name in matched_tools if registry.tool(name))
         denials = tuple(self._infer_permission_denials(matches))
         stream_events = tuple(engine.stream_submit_message(
             prompt,
-            matched_commands=tuple(match.name for match in matches if match.kind == 'command'),
-            matched_tools=tuple(match.name for match in matches if match.kind == 'tool'),
+            matched_commands=matched_commands,
+            matched_tools=matched_tools,
             denied_tools=denials,
         ))
         turn_result = engine.submit_message(
             prompt,
-            matched_commands=tuple(match.name for match in matches if match.kind == 'command'),
-            matched_tools=tuple(match.name for match in matches if match.kind == 'tool'),
+            matched_commands=matched_commands,
+            matched_tools=matched_tools,
             denied_tools=denials,
         )
         persisted_session_path = engine.persist_session()
