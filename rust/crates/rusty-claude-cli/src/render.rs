@@ -48,6 +48,7 @@ impl Default for ColorTheme {
 pub struct Spinner {
     frame_index: usize,
     cursor_hidden: bool,
+    restore_stdout_cursor_on_drop: bool,
 }
 
 impl Spinner {
@@ -77,8 +78,10 @@ impl Spinner {
             ResetColor,
             RestorePosition
         )?;
+        out.flush()?;
         self.cursor_hidden = true;
-        out.flush()
+        self.restore_stdout_cursor_on_drop = io::stdout().is_terminal();
+        Ok(())
     }
 
     pub fn finish(
@@ -87,8 +90,6 @@ impl Spinner {
         theme: &ColorTheme,
         out: &mut impl Write,
     ) -> io::Result<()> {
-        self.frame_index = 0;
-        self.cursor_hidden = false;
         execute!(
             out,
             Show,
@@ -98,7 +99,11 @@ impl Spinner {
             Print(format!("✔ {label}\n")),
             ResetColor
         )?;
-        out.flush()
+        out.flush()?;
+        self.frame_index = 0;
+        self.cursor_hidden = false;
+        self.restore_stdout_cursor_on_drop = false;
+        Ok(())
     }
 
     pub fn fail(
@@ -107,8 +112,6 @@ impl Spinner {
         theme: &ColorTheme,
         out: &mut impl Write,
     ) -> io::Result<()> {
-        self.frame_index = 0;
-        self.cursor_hidden = false;
         execute!(
             out,
             Show,
@@ -118,13 +121,17 @@ impl Spinner {
             Print(format!("✘ {label}\n")),
             ResetColor
         )?;
-        out.flush()
+        out.flush()?;
+        self.frame_index = 0;
+        self.cursor_hidden = false;
+        self.restore_stdout_cursor_on_drop = false;
+        Ok(())
     }
 }
 
 impl Drop for Spinner {
     fn drop(&mut self) {
-        if self.cursor_hidden && io::stdout().is_terminal() {
+        if self.cursor_hidden && self.restore_stdout_cursor_on_drop {
             let _ = execute!(io::stdout(), Show);
         }
     }
