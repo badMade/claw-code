@@ -8590,6 +8590,8 @@ printf 'pwsh:%s' "$1"
     fn test_command_exists() {
         assert!(super::command_exists("ls") || super::command_exists("dir"));
         assert!(!super::command_exists("ls; echo injected"));
-        assert!(!super::command_exists("this_command_should_not_exist_12345"));
+        assert!(!super::command_exists(
+            "this_command_should_not_exist_12345"
+        ));
     }
 }
