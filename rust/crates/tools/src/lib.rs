@@ -5151,7 +5151,9 @@ fn detect_powershell_shell() -> std::io::Result<&'static str> {
 fn command_exists(command: &str) -> bool {
     std::process::Command::new("sh")
         .arg("-c")
-        .arg(format!("command -v {command} >/dev/null 2>&1"))
+        .arg("command -v \"$1\" >/dev/null 2>&1")
+        .arg("--")
+        .arg(command)
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
@@ -8582,5 +8584,19 @@ printf 'pwsh:%s' "$1"
             )
             .into_bytes()
         }
+    }
+
+    #[test]
+    fn test_command_exists() {
+        // We assume `ls` is available on any POSIX system where this test runs.
+        assert!(super::command_exists("ls"));
+
+        // A non-existent command should fail
+        assert!(!super::command_exists(
+            "this_command_should_never_exist_12345"
+        ));
+
+        // Command injection attempt should fail and not execute the injected command
+        assert!(!super::command_exists("foo; echo 'injected'"));
     }
 }
