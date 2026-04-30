@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
+from types import MappingProxyType
 
 from .models import PortingBacklog, PortingModule
 from .permissions import ToolPermissionContext
@@ -32,12 +35,18 @@ def tool_names() -> list[str]:
     return [module.name for module in PORTED_TOOLS]
 
 
-def get_tool(name: str) -> PortingModule | None:
-    needle = name.lower()
+@lru_cache(maxsize=1)
+def _get_tool_lookup() -> Mapping[str, PortingModule]:
+    lookup: dict[str, PortingModule] = {}
     for module in PORTED_TOOLS:
-        if module.name.lower() == needle:
-            return module
-    return None
+        name_lower = module.name.lower()
+        if name_lower not in lookup:
+            lookup[name_lower] = module
+    return MappingProxyType(lookup)
+
+
+def get_tool(name: str) -> PortingModule | None:
+    return _get_tool_lookup().get(name.lower())
 
 
 def filter_tools_by_permission_context(

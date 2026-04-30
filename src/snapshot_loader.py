@@ -7,7 +7,7 @@ from pathlib import Path
 from .models import PortingModule
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=2)
 def load_porting_modules(snapshot_path: Path) -> tuple[PortingModule, ...]:
     raw_entries = json.loads(snapshot_path.read_text())
     return tuple(
