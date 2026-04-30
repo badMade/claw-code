@@ -3,3 +3,7 @@
 **Action:** When constructing strings from parts using `Vec` and `.join()`, look for opportunities to use a `Vec<&str>` populated with borrowed string slices (`.as_str()`) instead of a `Vec<String>` populated with cloned strings (`.clone()`).
 ## 2026-04-24 - Optimize ExecutionRegistry loop allocations
 Performance: Use `@functools.cached_property` on frozen dataclasses to lazy-load and cache lookup dictionaries. This changes an O(N) linear scan with per-iteration string allocations (`.lower()`) into an O(1) dictionary lookup with a single string allocation. When building the cache, use `if key not in dict:` to ensure first-match priority is maintained if there are duplicated entries.
+
+## 2026-04-29 - Python Dictionary Lookup Optimization for Lists
+**Learning:** O(N) linear scans on static lists inside frequently called functions (e.g., `get_tool`) are a performance hazard. A `lru_cache(maxsize=1)` dictionary lookup wrapped in `MappingProxyType` to prevent modification is a simple and extremely effective optimization technique that reduces complexity from O(N) to O(1) and eliminates repeated loop and string allocations. We must be mindful when mapping non-unique elements. Preserving first-match behavior requires `if key not in lookup:` during the dictionary's initial lazy-loading map phase.
+**Action:** Always favor lazily initialized cached dictionary lookups over list iteration when retrieving elements from static datasets by string keys.
