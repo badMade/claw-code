@@ -17,17 +17,6 @@ DEFAULT_SESSION_DIR = Path(".port_sessions")
 
 
 def validate_session_id(session_id: str) -> None:
-    if "/" in session_id or "\\" in session_id:
-        raise ValueError(f"Invalid session ID: contains path separators ({session_id})")
-    if session_id in (".", ".."):
-        raise ValueError(f"Invalid session ID: cannot be '.' or '..' ({session_id})")
-    if ".." in session_id:
-        raise ValueError(
-            f"Invalid session ID: contains directory traversal ('..') ({session_id})"
-        )
-
-
-def validate_session_id(session_id: str) -> None:
     if not session_id:
         raise ValueError("Session ID cannot be empty")
     # Validate against both Unix and Windows path parsing so that malicious
