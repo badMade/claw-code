@@ -4,12 +4,19 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-def _run(name: str, cmd: list[str], *, required: bool = True) -> bool:
+def _run(
+    name: str,
+    cmd: list[str],
+    *,
+    required: bool = True,
+    cwd: Path | None = None,
+) -> bool:
     """Run a command, print status, return True on success."""
     print(f"\n==> {name}: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=False)
+    result = subprocess.run(cmd, capture_output=False, cwd=cwd)
     if result.returncode != 0:
         print(f"[FAIL] {name} (exit {result.returncode})")
         if required:
@@ -31,12 +38,20 @@ def main() -> int:
     ok = True
 
     # 1) Verify editable install works
-    # Check importing a module from src directly to avoid false positives from folder imports
-    ok &= _run("Install check", [sys.executable, "-c", "from src import query_engine; print('query_engine imported successfully')"])
+    with tempfile.TemporaryDirectory() as temp_dir:
+        ok &= _run(
+            "Install check",
+            [sys.executable, "-c", "import src.query_engine; print('query_engine imported successfully')"],
+            cwd=Path(temp_dir),
+        )
 
     # 2) Lint (ruff) — skip if not installed
     if _has_tool("ruff"):
-        ok &= _run("Lint (ruff)", [sys.executable, "-m", "ruff", "check", str(root / "src"), str(root / "tests")])
+        ok &= _run(
+            "Lint (ruff)",
+            [sys.executable, "-m", "ruff", "check", str(root / "src"), str(root / "tests")],
+            cwd=root,
+        )
     else:
         print("\n==> Lint: ruff not installed, skipping")
 
@@ -46,15 +61,28 @@ def main() -> int:
             "Typecheck (mypy)",
             [sys.executable, "-m", "mypy", str(root / "src")],
             required=False,  # advisory until fully typed
+            cwd=root,
         )
     else:
         print("\n==> Typecheck: mypy not installed, skipping")
 
-    # 4) Tests (pytest)
-    ok &= _run("Tests (pytest)", [sys.executable, "-m", "pytest", "-q", str(root / "tests")])
+    # 4) Tests (unittest)
+    ok &= _run(
+        "Tests (unittest)",
+        [sys.executable, "-m", "unittest", "discover", "-s", str(root / "tests"), "-q"],
+        cwd=root,
+    )
 
-    # 5) Package build check
-    ok &= _run("Build check", [sys.executable, "-m", "build", "--no-isolation", "--wheel", str(root)], required=False)
+    # 5) Package build check — skip if not installed
+    if _has_tool("build"):
+        ok &= _run(
+            "Build check",
+            [sys.executable, "-m", "build", "--no-isolation", "--wheel", str(root)],
+            required=False,
+            cwd=root,
+        )
+    else:
+        print("\n==> Build check: build not installed, skipping")
 
     return 0 if ok else 1
 

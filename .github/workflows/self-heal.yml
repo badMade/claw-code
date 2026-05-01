@@ -18,12 +18,20 @@ concurrency:
 
 jobs:
   self-heal:
-    # Only run on failure of the watched workflow, or manual dispatch.
+    # Only run on trusted failures of the watched workflow, or manual dispatch.
     # Never run on selfheal-* branches (loop prevention).
     if: >
-      (github.ref_name == null || !startsWith(github.ref_name, 'selfheal-')) &&
-      (github.event_name == 'workflow_dispatch' ||
-       github.event.workflow_run.conclusion == 'failure')
+      (
+        github.event_name == 'workflow_dispatch' &&
+        (github.ref_name == null || !startsWith(github.ref_name, 'selfheal-'))
+      ) ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'failure' &&
+        github.event.workflow_run.event != 'pull_request' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        !startsWith(github.event.workflow_run.head_branch, 'selfheal-')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -32,17 +40,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          repository: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name || github.repository }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: "3.12"
 
       - name: Install base tooling
         run: |
           python -m pip install --upgrade pip wheel setuptools
-          pip install -e .
-          pip install pytest ruff mypy
+          pip install -e ".[dev,selfheal]"
 
       - name: Healthcheck (pre-repair)
         id: pre
@@ -50,9 +59,11 @@ jobs:
         run: python scripts/healthcheck.py 2>&1 | tee selfheal-pre.txt
 
       - name: Attempt self-heal repairs
+        continue-on-error: true
         run: python scripts/self_heal.py 2>&1 | tee selfheal-repair.txt
 
       - name: Healthcheck (post-repair)
+        if: always()
         id: post
         continue-on-error: true
         run: python scripts/healthcheck.py 2>&1 | tee selfheal-post.txt
@@ -92,7 +103,7 @@ jobs:
             --body "## Self-Heal Auto-PR
 
           This PR was created automatically by the self-heal workflow after
-          a CI failure on \`${{ github.ref_name }}\`.
+          a CI failure on \`${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.ref_name }}\`.
 
           **Pre-repair status:** ${{ steps.pre.outcome }}
           **Post-repair status:** ${{ steps.post.outcome }}
@@ -103,4 +114,4 @@ jobs:
           *Auto-generated. Do not merge without review.*" \
             --label "self-heal" \
             --head "$BRANCH" \
-            --base "${{ github.event.repository.default_branch }}"
+            --base "${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.event.repository.default_branch }}"
