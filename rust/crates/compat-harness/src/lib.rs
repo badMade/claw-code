@@ -354,4 +354,13 @@ mod tests {
         assert!(names.contains(&"AgentTool"));
         assert!(names.contains(&"BashTool"));
     }
+
+    #[test]
+    fn extract_manifest_returns_not_found_for_invalid_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = UpstreamPaths::from_repo_root(temp.path());
+        let result = extract_manifest(&paths);
+        let err = result.expect_err("should fail when files do not exist");
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
 }
