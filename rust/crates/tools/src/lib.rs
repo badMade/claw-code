@@ -5149,12 +5149,7 @@ fn detect_powershell_shell() -> std::io::Result<&'static str> {
 }
 
 fn command_exists(command: &str) -> bool {
-    std::process::Command::new("sh")
-        .arg("-c")
-        .arg(format!("command -v {command} >/dev/null 2>&1"))
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false)
+    which::which(command).is_ok()
 }
 
 #[allow(clippy::too_many_lines)]
@@ -5351,6 +5346,25 @@ pub mod pdf_extract;
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_command_exists_safe() {
+        // Safe standard inputs
+        assert!(command_exists("sh") || command_exists("bash") || command_exists("cmd"));
+        assert!(!command_exists("non_existent_command_123456789"));
+    }
+
+    #[test]
+    fn test_command_exists_injection() {
+        // With the vulnerable sh -c format! implementation, these might evaluate to true or run commands.
+        // With `which::which`, they safely fail because these are not valid executable names in PATH.
+        assert!(!command_exists("sh; echo hacked"));
+        assert!(!command_exists("$(echo sh)"));
+        assert!(!command_exists("sh && ls"));
+        assert!(!command_exists("`sh`"));
+    }
+
     use std::collections::BTreeMap;
     use std::collections::BTreeSet;
     use std::fs;
