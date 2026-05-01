@@ -1,5 +1,3 @@
-import sys
-
 def replace_in_file(filepath, search_str, replace_str):
     with open(filepath, 'r') as f:
         content = f.read()
