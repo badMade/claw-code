@@ -357,7 +357,12 @@ mod tests {
 
     #[test]
     fn extract_manifest_returns_error_for_invalid_paths() {
-        let paths = UpstreamPaths::from_repo_root("/this_directory_does_not_exist_12345");
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time should be after epoch")
+            .as_nanos();
+        let missing_root = std::env::temp_dir().join(format!("compat-harness-missing-{nanos}"));
+        let paths = UpstreamPaths::from_repo_root(missing_root);
         let result = extract_manifest(&paths);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
