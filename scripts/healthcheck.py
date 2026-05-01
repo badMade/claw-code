@@ -41,7 +41,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as temp_dir:
         ok &= _run(
             "Install check",
-            [sys.executable, "-c", "import src.query_engine; print('query_engine imported successfully')"],
+            [sys.executable, "-c", "from src import query_engine; print(query_engine.__name__)"],
             cwd=Path(temp_dir),
         )
 
@@ -66,7 +66,7 @@ def main() -> int:
     else:
         print("\n==> Typecheck: mypy not installed, skipping")
 
-    # 4) Tests (unittest)
+    # 4) Tests (unittest) - matches this repo's default Python test runner.
     ok &= _run(
         "Tests (unittest)",
         [sys.executable, "-m", "unittest", "discover", "-s", str(root / "tests"), "-q"],

@@ -19,6 +19,8 @@ concurrency:
 jobs:
   self-heal:
     # Only run on trusted failures of the watched workflow, or manual dispatch.
+    # workflow_run excludes pull_request events to avoid running write-token jobs
+    # against untrusted PR code.
     # Never run on selfheal-* branches (loop prevention).
     if: >
       (
