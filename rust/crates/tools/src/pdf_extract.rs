@@ -545,4 +545,21 @@ mod tests {
         // cleanup
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    #[test]
+    fn extracts_text_returns_err_for_missing_file() {
+        // given
+        let temp_dir = tempfile::tempdir().unwrap();
+        let bad_path = temp_dir.path().join("does_not_exist.pdf");
+
+        // when
+        let result = extract_text(&bad_path);
+
+        // then
+        assert!(
+            result.is_err(),
+            "Expected an error when file does not exist"
+        );
+        assert!(result.unwrap_err().starts_with("failed to read PDF:"));
+    }
 }
