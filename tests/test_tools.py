@@ -31,6 +31,10 @@ class TestGetTool(unittest.TestCase):
         from src import tools as src_tools
         src_tools._get_tool_lookup.cache_clear()
 
+    def tearDown(self):
+        from src import tools as src_tools
+        src_tools._get_tool_lookup.cache_clear()
+
     def test_get_tool_exact_match(self):
         with patch('src.tools.PORTED_TOOLS', self.dummy_tools):
             tool = get_tool('FileReadTool')
