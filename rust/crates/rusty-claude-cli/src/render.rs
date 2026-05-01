@@ -44,7 +44,7 @@ impl Default for ColorTheme {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default)]
 pub struct Spinner {
     frame_index: usize,
     cursor_hidden: bool,
@@ -125,14 +125,6 @@ impl Spinner {
             ResetColor
         )?;
         out.flush()
-    }
-}
-
-impl Drop for Spinner {
-    fn drop(&mut self) {
-        if self.cursor_hidden {
-            let _ = execute!(io::stdout(), Show);
-        }
     }
 }
 
@@ -1083,5 +1075,49 @@ mod tests {
 
         let output = String::from_utf8_lossy(&out);
         assert!(output.contains("Working"));
+    }
+
+    #[test]
+    fn spinner_hides_cursor_once_and_restores_on_finish() {
+        let terminal_renderer = TerminalRenderer::new();
+        let mut spinner = Spinner::new();
+        let mut out = Vec::new();
+
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("first tick succeeds");
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("second tick succeeds");
+        spinner
+            .finish("Done", terminal_renderer.color_theme(), &mut out)
+            .expect("finish succeeds");
+        spinner
+            .finish("Done", terminal_renderer.color_theme(), &mut out)
+            .expect("second finish succeeds");
+
+        let output = String::from_utf8_lossy(&out);
+        assert_eq!(output.matches("\u{1b}[?25l").count(), 1);
+        assert_eq!(output.matches("\u{1b}[?25h").count(), 1);
+    }
+
+    #[test]
+    fn spinner_restores_cursor_on_fail() {
+        let terminal_renderer = TerminalRenderer::new();
+        let mut spinner = Spinner::new();
+        let mut out = Vec::new();
+
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("tick succeeds");
+        spinner
+            .fail("Failed", terminal_renderer.color_theme(), &mut out)
+            .expect("fail succeeds");
+        spinner
+            .fail("Failed", terminal_renderer.color_theme(), &mut out)
+            .expect("second fail succeeds");
+
+        let output = String::from_utf8_lossy(&out);
+        assert_eq!(output.matches("\u{1b}[?25h").count(), 1);
     }
 }
