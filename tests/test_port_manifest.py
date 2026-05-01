@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import unittest
 import tempfile
 from pathlib import Path
@@ -34,9 +36,6 @@ class TestPortManifest(unittest.TestCase):
         pycache_dir = self.root_path / "__pycache__"
         pycache_dir.mkdir()
         (pycache_dir / "test.py").touch()
-
-        # also test top level __pycache__ file just in case
-        (self.root_path / "__pycache__").touch()
 
         manifest = build_port_manifest(self.root_path)
         self.assertEqual(manifest.total_python_files, 0)
