@@ -8604,10 +8604,10 @@ mod command_exists_tests {
 
     #[test]
     fn test_command_exists_injection() {
-        // If injection works, 'ls' will execute and return true for the entire command
-        // If injection is prevented, it will look for a command literally named 'ls; echo pwned' and fail
+        // If injection works, shell metacharacters or substitutions may be evaluated.
+        // If injection is prevented, each payload is treated as a literal command name and fails.
         assert!(!command_exists("ls; echo pwned"));
-        assert!(!command_exists("$(touch pwned)"));
+        assert!(!command_exists("$(echo pwned)"));
         assert!(!command_exists("ls && echo pwned"));
         assert!(!command_exists("ls || echo pwned"));
         assert!(!command_exists("`echo ls`"));
