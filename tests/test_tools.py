@@ -69,7 +69,7 @@ class TestTools(unittest.TestCase):
         # Find the first duplicated name using Counter for O(n) detection
         name_counts = collections.Counter(t.name for t in PORTED_TOOLS)
         dupe_name = next(
-            (name for name in (t.name for t in PORTED_TOOLS) if name_counts[name] > 1),
+            (name for name, count in name_counts.items() if count > 1),
             None,
         )
 
