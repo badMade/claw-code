@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import unittest
 from src.tools import (
     load_tool_snapshot,
@@ -65,12 +66,14 @@ class TestTools(unittest.TestCase):
         self.assertIsNone(get_tool("NonExistentToolNamexyz123"))
 
         # First-match priority on duplicates
-        # Find a name with duplicates in PORTED_TOOLS
-        names = [t.name for t in PORTED_TOOLS]
-        dupes = [x for x in set(names) if names.count(x) > 1]
+        # Find the first duplicated name using Counter for O(n) detection
+        name_counts = collections.Counter(t.name for t in PORTED_TOOLS)
+        dupe_name = next(
+            (name for name in (t.name for t in PORTED_TOOLS) if name_counts[name] > 1),
+            None,
+        )
 
-        if dupes:
-            dupe_name = dupes[0]
+        if dupe_name is not None:
             # Find the actual first module in PORTED_TOOLS with this name
             expected_first_module = next(
                 t for t in PORTED_TOOLS if t.name.lower() == dupe_name.lower()
@@ -80,13 +83,14 @@ class TestTools(unittest.TestCase):
             self.assertEqual(get_tool(dupe_name), expected_first_module)
             self.assertEqual(get_tool(dupe_name.upper()), expected_first_module)
 
-            # verify there are other modules with the same name but different source_hint that were not returned
+            # verify there are other modules with the same name but a different source_hint
             other_modules = [
                 t
                 for t in PORTED_TOOLS
                 if t.name.lower() == dupe_name.lower() and t != expected_first_module
             ]
             self.assertTrue(len(other_modules) > 0)
+            self.assertNotEqual(other_modules[0].source_hint, expected_first_module.source_hint)
             self.assertNotEqual(get_tool(dupe_name), other_modules[0])
 
     def test_filter_tools_by_permission_context(self) -> None:
