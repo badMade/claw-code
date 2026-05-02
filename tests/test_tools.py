@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 from src.tools import (
     load_tool_snapshot,
     build_tool_backlog,
@@ -39,18 +40,39 @@ class TestTools(unittest.TestCase):
         self.assertEqual(len(names), len(PORTED_TOOLS))
         self.assertEqual(names, [m.name for m in PORTED_TOOLS])
 
+    @patch('src.tools.PORTED_TOOLS', (
+        PortingModule(name='TestToolA', responsibility='Test', source_hint='test_hint_a', status='mirrored'),
+        PortingModule(name='TestToolB', responsibility='Test', source_hint='test_hint_b', status='mirrored'),
+        PortingModule(name='testtoola', responsibility='Duplicate', source_hint='test_hint_dup', status='mirrored')
+    ))
     def test_get_tool(self) -> None:
-        if not PORTED_TOOLS:
-            self.skipTest("No tools available in snapshot")
-
-        first_tool = PORTED_TOOLS[0]
         # Exact match
-        self.assertEqual(get_tool(first_tool.name), first_tool)
+        tool = get_tool('TestToolA')
+        self.assertIsNotNone(tool)
+        self.assertEqual(tool.name, 'TestToolA')
+        self.assertEqual(tool.responsibility, 'Test')
+
         # Case-insensitive match
-        self.assertEqual(get_tool(first_tool.name.lower()), first_tool)
-        self.assertEqual(get_tool(first_tool.name.upper()), first_tool)
+        tool = get_tool('testtoolb')
+        self.assertIsNotNone(tool)
+        self.assertEqual(tool.name, 'TestToolB')
+
+        tool = get_tool('TESTTOOLB')
+        self.assertIsNotNone(tool)
+        self.assertEqual(tool.name, 'TestToolB')
+
         # Unknown tool
         self.assertIsNone(get_tool("NonExistentToolNamexyz123"))
+
+        # Duplicate names (returns first match)
+        tool = get_tool('testtoola')
+        self.assertIsNotNone(tool)
+        self.assertEqual(tool.responsibility, 'Test')
+
+    @patch('src.tools.PORTED_TOOLS', ())
+    def test_get_tool_empty_list(self) -> None:
+        # Empty PORTED_TOOLS list
+        self.assertIsNone(get_tool('TestToolA'))
 
     def test_filter_tools_by_permission_context(self) -> None:
         tools = PORTED_TOOLS[:5]
