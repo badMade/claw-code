@@ -1,3 +1,4 @@
+use base64::Engine;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -5164,12 +5165,18 @@ fn execute_shell_command(
     timeout: Option<u64>,
     run_in_background: Option<bool>,
 ) -> std::io::Result<runtime::BashCommandOutput> {
+    let utf16_bytes: Vec<u8> = command
+        .encode_utf16()
+        .flat_map(|u| u.to_le_bytes())
+        .collect();
+    let encoded_command = base64::engine::general_purpose::STANDARD.encode(utf16_bytes);
+
     if run_in_background.unwrap_or(false) {
         let child = std::process::Command::new(shell)
             .arg("-NoProfile")
             .arg("-NonInteractive")
-            .arg("-Command")
-            .arg(command)
+            .arg("-EncodedCommand")
+            .arg(encoded_command)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -5197,8 +5204,8 @@ fn execute_shell_command(
     process
         .arg("-NoProfile")
         .arg("-NonInteractive")
-        .arg("-Command")
-        .arg(command);
+        .arg("-EncodedCommand")
+        .arg(encoded_command);
     process
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
