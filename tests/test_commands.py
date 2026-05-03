@@ -54,6 +54,10 @@ class TestCommands(unittest.TestCase):
     def tearDown(self):
         self.patcher.stop()
 
+        # Clear caches again after unpatching so real command lookups are not contaminated
+        src.commands.built_in_command_names.cache_clear()
+        src.commands._get_command_lookup.cache_clear()
+
     def test_load_command_snapshot(self):
         # We don't need to patch for this test if we call the function directly
         # but the file is loaded so we just test the real load to ensure snapshot parsing works.
