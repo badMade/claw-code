@@ -5151,7 +5151,9 @@ fn detect_powershell_shell() -> std::io::Result<&'static str> {
 fn command_exists(command: &str) -> bool {
     std::process::Command::new("sh")
         .arg("-c")
-        .arg(format!("command -v {command} >/dev/null 2>&1"))
+        .arg("command -v \"$1\" >/dev/null 2>&1")
+        .arg("--")
+        .arg(command)
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
@@ -8582,5 +8584,27 @@ printf 'pwsh:%s' "$1"
             )
             .into_bytes()
         }
+    }
+}
+
+#[cfg(test)]
+mod command_exists_tests {
+    use super::command_exists;
+
+    #[test]
+    fn test_command_exists_valid() {
+        assert!(command_exists("sh"));
+    }
+
+    #[test]
+    fn test_command_exists_invalid() {
+        assert!(!command_exists("nonexistent_command_12345"));
+    }
+
+    #[test]
+    fn test_command_exists_injection() {
+        // If vulnerable, this might actually run `echo` and succeed, but 'sh; echo injected' is not a valid command name
+        assert!(!command_exists("sh; echo injected"));
+        assert!(!command_exists("sh && echo injected"));
     }
 }
