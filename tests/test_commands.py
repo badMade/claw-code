@@ -42,19 +42,21 @@ MOCK_COMMANDS = (
 
 
 class TestCommands(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Patch PORTED_COMMANDS in src.commands
         self.patcher = patch("src.commands.PORTED_COMMANDS", MOCK_COMMANDS)
-        self.mock_ported_commands = self.patcher.start()
+        self.patcher.start()
 
         # Clear lru_caches because they retain state across tests
         src.commands.built_in_command_names.cache_clear()
         src.commands._get_command_lookup.cache_clear()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.patcher.stop()
+        src.commands.built_in_command_names.cache_clear()
+        src.commands._get_command_lookup.cache_clear()
 
-    def test_load_command_snapshot(self):
+    def test_load_command_snapshot(self) -> None:
         # We don't need to patch for this test if we call the function directly
         # but the file is loaded so we just test the real load to ensure snapshot parsing works.
         snapshot = load_command_snapshot()
@@ -64,23 +66,23 @@ class TestCommands(unittest.TestCase):
             self.assertIsInstance(cmd, PortingModule)
             self.assertEqual(cmd.status, "mirrored")
 
-    def test_built_in_command_names(self):
+    def test_built_in_command_names(self) -> None:
         names = built_in_command_names()
         self.assertIsInstance(names, frozenset)
         self.assertEqual(names, frozenset(c.name for c in MOCK_COMMANDS))
 
-    def test_build_command_backlog(self):
+    def test_build_command_backlog(self) -> None:
         backlog = build_command_backlog()
         self.assertIsInstance(backlog, PortingBacklog)
         self.assertEqual(backlog.title, "Command surface")
         self.assertEqual(backlog.modules, list(MOCK_COMMANDS))
 
-    def test_command_names(self):
+    def test_command_names(self) -> None:
         names = command_names()
         self.assertIsInstance(names, list)
         self.assertEqual(names, [c.name for c in MOCK_COMMANDS])
 
-    def test_get_command(self):
+    def test_get_command(self) -> None:
         # Exact match
         self.assertEqual(get_command("TestCommand1"), MOCK_COMMANDS[0])
         # Case insensitive match
@@ -89,7 +91,7 @@ class TestCommands(unittest.TestCase):
         # Not found
         self.assertIsNone(get_command("NonExistentCommand"))
 
-    def test_get_commands(self):
+    def test_get_commands(self) -> None:
         # All
         all_cmds = get_commands()
         self.assertEqual(all_cmds, MOCK_COMMANDS)
@@ -111,7 +113,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(len(core_only), 1)
         self.assertEqual(core_only[0], MOCK_COMMANDS[0])
 
-    def test_find_commands(self):
+    def test_find_commands(self) -> None:
         # Match by name
         matches = find_commands("TestCommand1")
         self.assertEqual(len(matches), 1)
@@ -130,7 +132,7 @@ class TestCommands(unittest.TestCase):
         matches = find_commands("Test", limit=2)
         self.assertEqual(len(matches), 2)
 
-    def test_execute_command(self):
+    def test_execute_command(self) -> None:
         # Success
         result = execute_command("TestCommand1", "do something")
         self.assertIsInstance(result, CommandExecution)
@@ -148,7 +150,7 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(result.prompt, "do something")
         self.assertIn("Unknown mirrored command", result.message)
 
-    def test_render_command_index(self):
+    def test_render_command_index(self) -> None:
         # No query
         output = render_command_index(limit=5)
         self.assertIn("Command entries: 3", output)
