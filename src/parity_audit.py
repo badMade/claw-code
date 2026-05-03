@@ -130,9 +130,9 @@ def run_parity_audit() -> ParityAuditResult:
         archive_present=ARCHIVE_ROOT.exists(),
         root_file_coverage=(len(root_hits), len(ARCHIVE_ROOT_FILES)),
         directory_coverage=(len(dir_hits), len(ARCHIVE_DIR_MAPPINGS)),
-        total_file_ratio=(current_python_files, int(reference['total_ts_like_files'])),
-        command_entry_ratio=(_snapshot_count(COMMAND_SNAPSHOT_PATH), int(reference['command_entry_count'])),
-        tool_entry_ratio=(_snapshot_count(TOOL_SNAPSHOT_PATH), int(reference['tool_entry_count'])),
+        total_file_ratio=(current_python_files, int(str(reference['total_ts_like_files']))),
+        command_entry_ratio=(_snapshot_count(COMMAND_SNAPSHOT_PATH), int(str(reference['command_entry_count']))),
+        tool_entry_ratio=(_snapshot_count(TOOL_SNAPSHOT_PATH), int(str(reference['tool_entry_count']))),
         missing_root_targets=missing_roots,
         missing_directory_targets=missing_dirs,
     )
