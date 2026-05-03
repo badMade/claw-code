@@ -27,7 +27,7 @@ ARCHIVE_ROOT_FILES = {
     'query.ts': 'query.py',
     'replLauncher.tsx': 'replLauncher.py',
     'setup.ts': 'setup.py',
-    'tasks.ts': 'tasks.py',
+    'tasks.ts': 'task.py',
     'tools.ts': 'tools.py',
 }
 
@@ -60,7 +60,7 @@ ARCHIVE_DIR_MAPPINGS = {
     'services': 'services',
     'skills': 'skills',
     'state': 'state',
-    'tasks': 'tasks.py',
+    'tasks': 'task.py',
     'tools': 'tools.py',
     'types': 'types',
     'upstreamproxy': 'upstreamproxy',
