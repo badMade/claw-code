@@ -27,6 +27,12 @@ class TestValidateSessionId(unittest.TestCase):
             validate_session_id("../../etc/passwd")
         with self.assertRaises(ValueError):
             validate_session_id("/absolute")
+        with self.assertRaises(ValueError):
+            validate_session_id("foo/")
+        with self.assertRaises(ValueError):
+            validate_session_id("foo//")
+        with self.assertRaises(ValueError):
+            validate_session_id("foo/.")
 
     def test_rejects_backslash(self) -> None:
         with self.assertRaises(ValueError):
