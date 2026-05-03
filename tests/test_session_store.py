@@ -28,6 +28,14 @@ class TestValidateSessionId(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_session_id("/absolute")
 
+    def test_rejects_trailing_separators_and_terminal_dot(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_session_id("foo/")
+        with self.assertRaises(ValueError):
+            validate_session_id("foo//")
+        with self.assertRaises(ValueError):
+            validate_session_id("foo/.")
+
     def test_rejects_backslash(self) -> None:
         with self.assertRaises(ValueError):
             validate_session_id("foo\\bar")
