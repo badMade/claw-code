@@ -38,6 +38,10 @@ use commands::{
     SkillSlashDispatch, SlashCommand,
 };
 use compat_harness::{extract_manifest, UpstreamPaths};
+use crossterm::cursor::MoveToColumn;
+use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
+use crossterm::terminal::{Clear, ClearType};
+use crossterm::{execute, queue};
 use init::initialize_repo;
 use plugins::{PluginHooks, PluginManager, PluginManagerConfig, PluginRegistry};
 use render::{MarkdownStreamState, Spinner, TerminalRenderer};
@@ -6434,6 +6438,30 @@ impl AnthropicRuntimeClient {
         message_request: &MessageRequest,
         apply_stall_timeout: bool,
     ) -> Result<Vec<AssistantEvent>, RuntimeError> {
+        struct OutputWriter<'a> {
+            emit_output: bool,
+            stdout: &'a mut io::Stdout,
+            sink: &'a mut io::Sink,
+        }
+
+        impl Write for OutputWriter<'_> {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                if self.emit_output {
+                    self.stdout.write(buf)
+                } else {
+                    self.sink.write(buf)
+                }
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                if self.emit_output {
+                    self.stdout.flush()
+                } else {
+                    self.sink.flush()
+                }
+            }
+        }
+
         let mut stream = self
             .client
             .stream_message(message_request)
@@ -6443,10 +6471,10 @@ impl AnthropicRuntimeClient {
             })?;
         let mut stdout = io::stdout();
         let mut sink = io::sink();
-        let out: &mut dyn Write = if self.emit_output {
-            &mut stdout
-        } else {
-            &mut sink
+        let out = &mut OutputWriter {
+            emit_output: self.emit_output,
+            stdout: &mut stdout,
+            sink: &mut sink,
         };
         let renderer = TerminalRenderer::new();
         let mut markdown_stream = MarkdownStreamState::default();
@@ -6533,9 +6561,16 @@ impl AnthropicRuntimeClient {
                                 [reasoning_frame_idx % Spinner::REASONING_FRAMES.len()];
                             reasoning_frame_idx += 1;
 
-                            write!(out, "\r\x1b[2K\x1b[38;5;208m{frame} Reasoning...\x1b[0m")
-                                .and_then(|()| out.flush())
-                                .map_err(|error| RuntimeError::new(error.to_string()))?;
+                            queue!(
+                                out,
+                                MoveToColumn(0),
+                                Clear(ClearType::CurrentLine),
+                                SetForegroundColor(Color::AnsiValue(208)),
+                                Print(format!("{frame} Reasoning...")),
+                                ResetColor
+                            )
+                            .and_then(|()| out.flush())
+                            .map_err(|error| RuntimeError::new(error.to_string()))?;
                         }
                     }
                     ContentBlockDelta::SignatureDelta { .. } => {}
@@ -6544,7 +6579,7 @@ impl AnthropicRuntimeClient {
                     if block_has_thinking_summary {
                         if self.emit_output {
                             // Clear the animated reasoning line
-                            write!(out, "\r\x1b[2K")
+                            execute!(out, MoveToColumn(0), Clear(ClearType::CurrentLine))
                                 .and_then(|()| out.flush())
                                 .map_err(|error| RuntimeError::new(error.to_string()))?;
                         }
