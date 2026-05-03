@@ -19,6 +19,13 @@ DEFAULT_SESSION_DIR = Path(".port_sessions")
 def validate_session_id(session_id: str) -> None:
     if not session_id:
         raise ValueError("Session ID cannot be empty")
+    # Explicit separator checks are required because PurePath normalizes
+    # trailing separators and terminal dot segments (e.g. "foo/" -> "foo"),
+    # which would otherwise bypass single-part checks.
+    if "/" in session_id or "\\" in session_id:
+        raise ValueError(
+            f"Invalid session ID '{session_id}': cannot contain path separators"
+        )
     # Validate against both Unix and Windows path parsing so that malicious
     # identifiers are rejected regardless of the host platform.  This catches
     # path separators, traversal segments (`.`, `..`), root anchors, and
