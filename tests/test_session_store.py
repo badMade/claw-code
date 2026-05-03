@@ -40,6 +40,18 @@ class TestValidateSessionId(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_session_id("..")
 
+    def test_rejects_trailing_separators_and_dot_segments(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_session_id("foo/")
+        with self.assertRaises(ValueError):
+            validate_session_id("foo//")
+        with self.assertRaises(ValueError):
+            validate_session_id("foo/.")
+        with self.assertRaises(ValueError):
+            validate_session_id("foo\\")
+        with self.assertRaises(ValueError):
+            validate_session_id("foo\\.")
+
     def test_rejects_windows_drive_prefix(self) -> None:
         with self.assertRaises(ValueError):
             validate_session_id("C:session")

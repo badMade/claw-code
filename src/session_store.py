@@ -19,13 +19,28 @@ DEFAULT_SESSION_DIR = Path(".port_sessions")
 def validate_session_id(session_id: str) -> None:
     if not session_id:
         raise ValueError("Session ID cannot be empty")
-    # Validate against both Unix and Windows path parsing so that malicious
-    # identifiers are rejected regardless of the host platform.  This catches
-    # path separators, traversal segments (`.`, `..`), root anchors, and
-    # Windows drive prefixes such as `C:` or UNC paths.
+
+    # Explicit checks are required because PurePath normalizes trailing
+    # separators and terminal dot segments (e.g. "foo/", "foo//", "foo/.").
+    if session_id.endswith(("/", "\\")):
+        raise ValueError(
+            f"Invalid session ID '{session_id}': cannot end with path separators"
+        )
+    if session_id.endswith("/.") or session_id.endswith("\\."):
+        raise ValueError(
+            f"Invalid session ID '{session_id}': cannot end with a dot segment"
+        )
+
+    # Validate against both Unix and Windows path parsing so malicious
+    # identifiers are rejected regardless of host platform.
     for path_cls in (PurePosixPath, PureWindowsPath):
-        p = path_cls(session_id)
-        if p.drive or p.root or len(p.parts) != 1 or p.parts[0] in (".", ".."):
+        parsed = path_cls(session_id)
+        if (
+            parsed.drive
+            or parsed.root
+            or len(parsed.parts) != 1
+            or parsed.parts[0] in (".", "..")
+        ):
             raise ValueError(
                 f"Invalid session ID '{session_id}': must be a single normal filename component"
             )
