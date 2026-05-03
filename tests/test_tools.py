@@ -111,6 +111,11 @@ class TestTools(unittest.TestCase):
         matches = find_tools("", limit=limit)
         self.assertLessEqual(len(matches), limit)
 
+
+    def test_find_tools_excludes_responsibility_boilerplate(self) -> None:
+        matches = find_tools("typescript", limit=len(PORTED_TOOLS))
+        self.assertEqual(matches, [])
+
     def test_execute_tool(self) -> None:
         if not PORTED_TOOLS:
             self.skipTest("No tools available in snapshot")

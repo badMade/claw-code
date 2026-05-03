@@ -93,7 +93,7 @@ def get_tools(
 
 def find_tools(query: str, limit: int = 20) -> list[PortingModule]:
     needle = query.lower()
-    matches = [module for module in PORTED_TOOLS if needle in module.search_text]
+    matches = [module for module in PORTED_TOOLS if needle in module.name_source_search_text]
     return matches[:limit]
 
 
