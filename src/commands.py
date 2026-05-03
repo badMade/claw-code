@@ -73,23 +73,15 @@ def get_commands(
 ) -> tuple[PortingModule, ...]:
     commands = list(PORTED_COMMANDS)
     if not include_plugin_commands:
-        commands = [
-            module for module in commands if "plugin" not in module.source_hint.lower()
-        ]
+        commands = [module for module in commands if "plugin" not in module.search_text]
     if not include_skill_commands:
-        commands = [
-            module for module in commands if "skills" not in module.source_hint.lower()
-        ]
+        commands = [module for module in commands if "skills" not in module.search_text]
     return tuple(commands)
 
 
 def find_commands(query: str, limit: int = 20) -> list[PortingModule]:
     needle = query.lower()
-    matches = [
-        module
-        for module in PORTED_COMMANDS
-        if needle in module.name.lower() or needle in module.source_hint.lower()
-    ]
+    matches = [module for module in PORTED_COMMANDS if needle in module.search_text]
     return matches[:limit]
 
 
