@@ -13,7 +13,7 @@ from src.commands import (
     execute_command,
     render_command_index,
     PORTED_COMMANDS,
-    CommandExecution
+    _get_command_lookup,
 )
 from src.models import PortingBacklog, PortingModule
 
@@ -133,40 +133,48 @@ class TestCommands(unittest.TestCase):
         self.assertIn(command.name, output)
 
 
-    @patch('src.commands.PORTED_COMMANDS', tuple())
-    @patch('src.commands._get_command_lookup')
-    def test_empty_snapshot_edge_cases(self, mock_lookup) -> None:
-        mock_lookup.return_value = {}
+    def test_empty_snapshot_edge_cases(self) -> None:
+        if not PORTED_COMMANDS:
+            self.skipTest("No commands available in snapshot")
 
-        # Test built_in_command_names with empty snapshot
-        # Since built_in_command_names is wrapped in lru_cache, we have to test it manually without cache
-        names = frozenset(m.name for m in tuple())
-        self.assertEqual(len(names), 0)
+        known_command = PORTED_COMMANDS[0].name
+        self.assertIsNotNone(get_command(known_command))
+        self.assertTrue(execute_command(known_command).handled)
 
-        # Test build_command_backlog with empty snapshot
-        backlog = build_command_backlog()
-        self.assertEqual(len(backlog.modules), 0)
+        with patch('src.commands.PORTED_COMMANDS', tuple()):
+            built_in_command_names.cache_clear()
+            _get_command_lookup.cache_clear()
 
-        # Test command_names with empty snapshot
-        self.assertEqual(len(command_names()), 0)
+            # Test built_in_command_names with empty snapshot
+            self.assertEqual(built_in_command_names(), frozenset())
 
-        # Test get_command with empty snapshot
-        self.assertIsNone(get_command("any_command"))
+            # Test build_command_backlog with empty snapshot
+            backlog = build_command_backlog()
+            self.assertEqual(len(backlog.modules), 0)
 
-        # Test get_commands with empty snapshot
-        self.assertEqual(len(get_commands()), 0)
+            # Test command_names with empty snapshot
+            self.assertEqual(len(command_names()), 0)
 
-        # Test find_commands with empty snapshot
-        self.assertEqual(len(find_commands("any_query")), 0)
+            # Test get_command with empty snapshot using previously valid command
+            self.assertIsNone(get_command(known_command))
 
-        # Test execute_command with empty snapshot
-        execution = execute_command("any_command", "prompt")
-        self.assertFalse(execution.handled)
-        self.assertIn("Unknown mirrored command", execution.message)
+            # Test get_commands with empty snapshot
+            self.assertEqual(len(get_commands()), 0)
 
-        # Test render_command_index with empty snapshot
-        output = render_command_index()
-        self.assertIn("Command entries: 0", output)
+            # Test find_commands with empty snapshot
+            self.assertEqual(len(find_commands(known_command)), 0)
+
+            # Test execute_command with empty snapshot using previously valid command
+            execution = execute_command(known_command, "prompt")
+            self.assertFalse(execution.handled)
+            self.assertIn("Unknown mirrored command", execution.message)
+
+            # Test render_command_index with empty snapshot
+            output = render_command_index()
+            self.assertIn("Command entries: 0", output)
+
+        built_in_command_names.cache_clear()
+        _get_command_lookup.cache_clear()
 
 if __name__ == '__main__':
     unittest.main()
