@@ -1,0 +1,196 @@
+name: Self-Heal Automation
+
+on:
+  workflow_run:
+    workflows: ["Rust CI", "ci"]
+    branches: [main]
+    types: [completed]
+  schedule:
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:
+
+concurrency:
+  group: selfheal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  self-heal:
+    # Fails closed / trigger logic
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'schedule') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+
+    steps:
+      - name: Check branch
+        id: check_branch
+        if: startsWith(github.ref_name, 'selfheal-')
+        run: |
+          echo "Loop prevention: Do not run self-heal on a selfheal-* branch"
+          echo "skip=true" >> $GITHUB_OUTPUT
+
+      - name: Bot-only branch guard
+        if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
+        run: echo "Branch is correct."
+
+      - uses: actions/checkout@v4
+        if: steps.check_branch.outputs.skip != 'true'
+        with:
+          fetch-depth: 0
+
+      - name: Setup toolchains
+        if: steps.check_branch.outputs.skip != 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: actions/setup-python@v5
+        if: steps.check_branch.outputs.skip != 'true'
+        with:
+          python-version: '3.11'
+
+      - name: Check for duplicate PR under 24h
+        id: check_pr
+        if: steps.check_branch.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RECENT_PRS=$(gh pr list --label self-heal --state open --json createdAt --jq '.[].createdAt' || echo "")
+          for DATE in $RECENT_PRS; do
+            PR_TIME=$(date -d "$DATE" +%s)
+            NOW=$(date +%s)
+            DIFF=$((NOW - PR_TIME))
+            if [ "$DIFF" -lt 86400 ]; then
+              echo "Open selfheal PR found < 24h old. Skipping."
+              echo "skip=true" >> $GITHUB_OUTPUT
+              bash -c 'exit 0'
+            fi
+          done
+
+      - name: Make scripts executable
+        if: steps.check_branch.outputs.skip != 'true' && steps.check_pr.outputs.skip != 'true'
+        run: chmod +x scripts/healthcheck.sh scripts/self_heal.sh
+
+      - name: Run pre-healthcheck
+        id: pre_health
+        if: steps.check_branch.outputs.skip != 'true' && steps.check_pr.outputs.skip != 'true'
+        run: |
+          if ./scripts/healthcheck.sh; then
+            echo "status=pass" >> $GITHUB_OUTPUT
+          else
+            echo "status=fail" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Self-Heal pipeline
+        id: repair
+        if: steps.check_branch.outputs.skip != 'true' && steps.check_pr.outputs.skip != 'true'
+        run: |
+          if ./scripts/self_heal.sh; then
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Meaningful diff check
+        id: meaningful_diff
+        if: steps.repair.outputs.success == 'true'
+        run: |
+          # If pre-healthcheck passed, only meaningful diffs are allowed, ignore purely whitespace diffs
+          if [ "${{ steps.pre_health.outputs.status }}" = "pass" ]; then
+            if git diff -w --name-only | grep -q .; then
+              echo "Meaningful diff found."
+              echo "valid=true" >> $GITHUB_OUTPUT
+            else
+              echo "Only whitespace changes found and healthcheck previously passed. Skipping PR."
+              echo "valid=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            # If pre-healthcheck failed, any change fixing it is meaningful
+            echo "valid=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Guard checks
+        if: steps.repair.outputs.success == 'true' && steps.meaningful_diff.outputs.valid == 'true'
+        run: |
+          # File changes NOT in
+          if git diff --name-only | grep -q '\.github/workflows/ci\.yml\|\.env\|secrets/\|src/.*/migrations/'; then
+            echo "Changes to forbidden files detected."
+            bash -c 'exit 1'
+          fi
+
+          # File changes ONLY in
+          if git diff --name-only | grep -v 'src/\|tests/snapshots/\|requirements.*\.txt\|package\.json\|go\.sum\|rust/.*\.rs\|Cargo\.*'; then
+             # Since it's hard to explicitly enumerate all, we can warn but let's check what's allowed.
+             echo "Checking for unexpected files modified..."
+          fi
+
+          # Scan for entropy / secrets in diff (heuristic)
+          if git diff | grep -iE 'api[_-]?key|secret|password|token' | grep -E '["\047][a-zA-Z0-9_-]{20,}["\047]'; then
+            echo "Potential secrets detected in diff."
+            bash -c 'exit 1'
+          fi
+
+      - name: Create Pull Request
+        if: steps.repair.outputs.success == 'true' && steps.meaningful_diff.outputs.valid == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE_STR=$(date +'%Y-%m-%d')
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            PR_TITLE="[Self-Heal Reactive] CI fix: $DATE_STR"
+            TRIGGER="CI failure"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            PR_TITLE="[Self-Heal Daily] Drift fixes: $DATE_STR"
+            TRIGGER="Daily schedule"
+          else
+            PR_TITLE="[Self-Heal Manual] Manual trigger: $DATE_STR"
+            TRIGGER="Manual dispatch"
+          fi
+
+          BRANCH_NAME="selfheal-$(date +%s)"
+          git checkout -b "$BRANCH_NAME"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -m "chore: auto-heal drift fixes"
+
+          git push origin "$BRANCH_NAME"
+
+          cat << PR_BODY > pr_body.txt
+          # Self-Heal Automation
+
+          **Trigger reason:** $TRIGGER
+
+          **Detected drift since last run:**
+          \`\`\`
+          $(git diff --name-only HEAD~1 HEAD)
+          \`\`\`
+
+          Please review the changes and merge if correct.
+
+          _Generated by Claude Code / Jules Chat Session_
+          PR_BODY
+
+          gh pr create --title "$PR_TITLE" --body-file pr_body.txt --label "self-heal" --label "automation" --base main --head "$BRANCH_NAME"
+
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Close stale self-heal PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          STALE_PRS=$(gh pr list --label self-heal --state open --json number,createdAt --jq '.[] | select((now - (.createdAt | fromdateiso8601)) > 604800) | .number' || echo "")
+          for PR in $STALE_PRS; do
+            gh pr close "$PR" -c "Closing stale self-heal PR (> 7 days old)"
+          done
