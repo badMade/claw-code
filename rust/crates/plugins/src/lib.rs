@@ -1238,11 +1238,14 @@ impl PluginManager {
         let mut seen_paths = BTreeSet::<PathBuf>::new();
         let mut stale_registry_ids = Vec::new();
 
+        let path_to_record: BTreeMap<&PathBuf, &InstalledPluginRecord> = registry
+            .plugins
+            .values()
+            .map(|record| (&record.install_path, record))
+            .collect();
+
         for install_path in discover_plugin_dirs(&self.install_root())? {
-            let matched_record = registry
-                .plugins
-                .values()
-                .find(|record| record.install_path == install_path);
+            let matched_record = path_to_record.get(&install_path).copied();
             let kind = matched_record.map_or(PluginKind::External, |record| record.kind);
             let source = matched_record.map_or_else(
                 || install_path.display().to_string(),
@@ -1314,6 +1317,10 @@ impl PluginManager {
         existing_plugins: &[PluginDefinition],
     ) -> Result<PluginDiscovery, PluginError> {
         let mut discovery = PluginDiscovery::default();
+        let mut seen_ids: BTreeSet<String> = existing_plugins
+            .iter()
+            .map(|p| p.metadata().id.clone())
+            .collect();
 
         for directory in &self.config.external_dirs {
             for root in discover_plugin_dirs(directory)? {
@@ -1325,11 +1332,7 @@ impl PluginManager {
                     EXTERNAL_MARKETPLACE,
                 ) {
                     Ok(plugin) => {
-                        if existing_plugins
-                            .iter()
-                            .chain(discovery.plugins.iter())
-                            .all(|existing| existing.metadata().id != plugin.metadata().id)
-                        {
+                        if seen_ids.insert(plugin.metadata().id.clone()) {
                             discovery.push_plugin(plugin);
                         }
                     }
