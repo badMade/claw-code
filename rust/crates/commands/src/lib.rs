@@ -2038,6 +2038,7 @@ struct AgentSummary {
 struct SkillSummary {
     name: String,
     description: Option<String>,
+    path: PathBuf,
     source: DefinitionSource,
     shadowed_by: Option<DefinitionSource>,
     origin: SkillOrigin,
@@ -2371,59 +2372,13 @@ pub fn resolve_skill_path(cwd: &Path, skill: &str) -> std::io::Result<PathBuf> {
     }
 
     let roots = discover_skill_roots(cwd);
-    for root in &roots {
-        let mut entries = Vec::new();
-        for entry in fs::read_dir(&root.path)? {
-            let entry = entry?;
-            match root.origin {
-                SkillOrigin::SkillsDir => {
-                    if !entry.path().is_dir() {
-                        continue;
-                    }
-                    let skill_path = entry.path().join("SKILL.md");
-                    if !skill_path.is_file() {
-                        continue;
-                    }
-                    let contents = fs::read_to_string(&skill_path)?;
-                    let (name, _) = parse_skill_frontmatter(&contents);
-                    entries.push((
-                        name.unwrap_or_else(|| entry.file_name().to_string_lossy().to_string()),
-                        skill_path,
-                    ));
-                }
-                SkillOrigin::LegacyCommandsDir => {
-                    let path = entry.path();
-                    let markdown_path = if path.is_dir() {
-                        let skill_path = path.join("SKILL.md");
-                        if !skill_path.is_file() {
-                            continue;
-                        }
-                        skill_path
-                    } else if path
-                        .extension()
-                        .is_some_and(|ext| ext.to_string_lossy().eq_ignore_ascii_case("md"))
-                    {
-                        path
-                    } else {
-                        continue;
-                    };
-
-                    let contents = fs::read_to_string(&markdown_path)?;
-                    let fallback_name = markdown_path.file_stem().map_or_else(
-                        || entry.file_name().to_string_lossy().to_string(),
-                        |stem| stem.to_string_lossy().to_string(),
-                    );
-                    let (name, _) = parse_skill_frontmatter(&contents);
-                    entries.push((name.unwrap_or(fallback_name), markdown_path));
-                }
-            }
-        }
-        entries.sort_by(|left, right| left.0.cmp(&right.0));
-        if let Some((_, path)) = entries
+    if let Ok(available_skills) = load_skills_from_roots(&roots) {
+        if let Some(skill) = available_skills
             .into_iter()
-            .find(|(name, _)| name.eq_ignore_ascii_case(requested))
+            .filter(|s| s.shadowed_by.is_none())
+            .find(|s| s.name.eq_ignore_ascii_case(requested))
         {
-            return Ok(path);
+            return Ok(skill.path);
         }
     }
 
@@ -3091,12 +3046,13 @@ fn load_skills_from_roots(roots: &[SkillRoot]) -> std::io::Result<Vec<SkillSumma
                     if !skill_path.is_file() {
                         continue;
                     }
-                    let contents = fs::read_to_string(skill_path)?;
+                    let contents = fs::read_to_string(&skill_path)?;
                     let (name, description) = parse_skill_frontmatter(&contents);
                     root_skills.push(SkillSummary {
                         name: name
                             .unwrap_or_else(|| entry.file_name().to_string_lossy().to_string()),
                         description,
+                        path: skill_path,
                         source: root.source,
                         shadowed_by: None,
                         origin: root.origin,
@@ -3128,6 +3084,7 @@ fn load_skills_from_roots(roots: &[SkillRoot]) -> std::io::Result<Vec<SkillSumma
                     root_skills.push(SkillSummary {
                         name: name.unwrap_or(fallback_name),
                         description,
+                        path: markdown_path,
                         source: root.source,
                         shadowed_by: None,
                         origin: root.origin,
