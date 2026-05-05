@@ -2399,7 +2399,7 @@ pub fn resolve_skill_path(cwd: &Path, skill: &str) -> std::io::Result<PathBuf> {
                         .extension()
                         .is_some_and(|ext| ext.to_string_lossy().eq_ignore_ascii_case("md"))
                     {
-                        path
+                        path.clone()
                     } else {
                         continue;
                     }
@@ -2407,10 +2407,19 @@ pub fn resolve_skill_path(cwd: &Path, skill: &str) -> std::io::Result<PathBuf> {
             };
 
             let contents = fs::read_to_string(&skill_path)?;
-            let fallback_name = skill_path.file_stem().map_or_else(
-                || entry.file_name().to_string_lossy().to_string(),
-                |stem| stem.to_string_lossy().to_string(),
-            );
+            let fallback_name = match root.origin {
+                SkillOrigin::SkillsDir => entry.file_name().to_string_lossy().to_string(),
+                SkillOrigin::LegacyCommandsDir => {
+                    if path.is_dir() {
+                        entry.file_name().to_string_lossy().to_string()
+                    } else {
+                        path.file_stem().map_or_else(
+                            || entry.file_name().to_string_lossy().to_string(),
+                            |stem| stem.to_string_lossy().to_string(),
+                        )
+                    }
+                }
+            };
             let (name, _) = parse_skill_frontmatter(&contents);
             let name_key = name.unwrap_or(fallback_name).to_ascii_lowercase();
             if name_key == requested_key {
