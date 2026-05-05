@@ -27,7 +27,7 @@ ARCHIVE_ROOT_FILES = {
     'query.ts': 'query.py',
     'replLauncher.tsx': 'replLauncher.py',
     'setup.ts': 'setup.py',
-    'tasks.ts': 'task.py',
+    'tasks.ts': 'tasks.py',
     'tools.ts': 'tools.py',
 }
 
