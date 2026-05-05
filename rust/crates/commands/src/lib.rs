@@ -2371,14 +2371,51 @@ pub fn resolve_skill_path(cwd: &Path, skill: &str) -> std::io::Result<PathBuf> {
         ));
     }
 
+    let requested_key = requested.to_ascii_lowercase();
     let roots = discover_skill_roots(cwd);
-    if let Ok(available_skills) = load_skills_from_roots(&roots) {
-        if let Some(skill) = available_skills
-            .into_iter()
-            .filter(|s| s.shadowed_by.is_none())
-            .find(|s| s.name.eq_ignore_ascii_case(requested))
-        {
-            return Ok(skill.path);
+    for root in roots {
+        for entry in fs::read_dir(&root.path)? {
+            let entry = entry?;
+            let path = entry.path();
+            let skill_path = match root.origin {
+                SkillOrigin::SkillsDir => {
+                    if !path.is_dir() {
+                        continue;
+                    }
+                    let skill_path = path.join("SKILL.md");
+                    if !skill_path.is_file() {
+                        continue;
+                    }
+                    skill_path
+                }
+                SkillOrigin::LegacyCommandsDir => {
+                    if path.is_dir() {
+                        let skill_path = path.join("SKILL.md");
+                        if !skill_path.is_file() {
+                            continue;
+                        }
+                        skill_path
+                    } else if path
+                        .extension()
+                        .is_some_and(|ext| ext.to_string_lossy().eq_ignore_ascii_case("md"))
+                    {
+                        path
+                    } else {
+                        continue;
+                    }
+                }
+            };
+
+            let contents = fs::read_to_string(&skill_path)?;
+            let fallback_name = skill_path.file_stem().map_or_else(
+                || entry.file_name().to_string_lossy().to_string(),
+                |stem| stem.to_string_lossy().to_string(),
+            );
+            let (name, _) = parse_skill_frontmatter(&contents);
+            let name_key = name.unwrap_or(fallback_name).to_ascii_lowercase();
+            if name_key == requested_key {
+                return Ok(skill_path);
+            }
         }
     }
 
@@ -4836,6 +4873,34 @@ mod tests {
         assert!(report.contains("(shadowed by Project roots) plan · User planning guidance"));
         assert!(report.contains("help · Help guidance"));
 
+        let _ = fs::remove_dir_all(workspace);
+        let _ = fs::remove_dir_all(user_home);
+    }
+
+    #[test]
+    fn resolves_project_skill_before_reading_lower_priority_roots() {
+        let _guard = env_lock().lock().expect("env lock");
+        let workspace = temp_dir("resolve-project-skill-priority");
+        let project_skills = workspace.join(".claw").join("skills");
+        let user_home = temp_dir("resolve-project-skill-priority-home");
+        let user_skills = user_home.join(".claw").join("skills");
+        let original_home = std::env::var_os("HOME");
+
+        write_skill(&project_skills, "plan", "Project planning guidance");
+        fs::create_dir_all(user_skills.join("broken")).expect("broken skill dir");
+        fs::write(
+            user_skills.join("broken").join("SKILL.md"),
+            vec![0x66, 0x6f, 0x80, 0x6f],
+        )
+        .expect("write invalid utf8 skill");
+
+        std::env::set_var("HOME", &user_home);
+        assert_eq!(
+            resolve_skill_path(&workspace, "$plan").expect("project skill should resolve"),
+            project_skills.join("plan").join("SKILL.md")
+        );
+
+        restore_env_var("HOME", original_home);
         let _ = fs::remove_dir_all(workspace);
         let _ = fs::remove_dir_all(user_home);
     }
