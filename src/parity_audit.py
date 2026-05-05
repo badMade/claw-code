@@ -60,7 +60,7 @@ ARCHIVE_DIR_MAPPINGS = {
     'services': 'services',
     'skills': 'skills',
     'state': 'state',
-    'tasks': 'task.py',
+    'tasks': 'tasks',
     'tools': 'tools.py',
     'types': 'types',
     'upstreamproxy': 'upstreamproxy',
