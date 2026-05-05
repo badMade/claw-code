@@ -2372,14 +2372,13 @@ pub fn resolve_skill_path(cwd: &Path, skill: &str) -> std::io::Result<PathBuf> {
     }
 
     let roots = discover_skill_roots(cwd);
-    if let Ok(available_skills) = load_skills_from_roots(&roots) {
-        if let Some(skill) = available_skills
-            .into_iter()
-            .filter(|s| s.shadowed_by.is_none())
-            .find(|s| s.name.eq_ignore_ascii_case(requested))
-        {
-            return Ok(skill.path);
-        }
+    let available_skills = load_skills_from_roots(&roots)?;
+    if let Some(skill) = available_skills
+        .into_iter()
+        .filter(|s| s.shadowed_by.is_none())
+        .find(|s| s.name.eq_ignore_ascii_case(requested))
+    {
+        return Ok(skill.path);
     }
 
     Err(std::io::Error::new(
@@ -4857,6 +4856,19 @@ mod tests {
             resolve_skill_path(&workspace, "/handoff").expect("legacy command should resolve"),
             legacy_commands.join("handoff.md")
         );
+    }
+
+    #[test]
+    fn resolve_skill_path_propagates_skill_loading_errors() {
+        let workspace = temp_dir("resolve-skill-propagates-errors");
+        let project_skills = workspace.join(".claw").join("skills");
+        let broken_skill = project_skills.join("plan");
+
+        fs::create_dir_all(&broken_skill).expect("create broken skill dir");
+        fs::write(broken_skill.join("SKILL.md"), [0xFF]).expect("write invalid utf-8");
+
+        let error = resolve_skill_path(&workspace, "plan").expect_err("should propagate read error");
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
     }
 
     #[test]
