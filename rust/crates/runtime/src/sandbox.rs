@@ -234,8 +234,6 @@ pub fn build_linux_sandbox_command(
     }
     args.push("sh".to_string());
     args.push("-c".to_string());
-    args.push("eval \"$1\"".to_string());
-    args.push("--".to_string());
     args.push(command.to_string());
 
     let sandbox_home = cwd.join(".sandbox-home");

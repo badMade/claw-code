@@ -203,8 +203,6 @@ fn prepare_command(
     let mut prepared = Command::new("sh");
     prepared
         .arg("-c")
-        .arg("eval \"$1\"")
-        .arg("--")
         .arg(command)
         .current_dir(cwd);
     if sandbox_status.filesystem_active {
@@ -235,8 +233,6 @@ fn prepare_tokio_command(
     let mut prepared = TokioCommand::new("sh");
     prepared
         .arg("-c")
-        .arg("eval \"$1\"")
-        .arg("--")
         .arg(command)
         .current_dir(cwd);
     if sandbox_status.filesystem_active {
