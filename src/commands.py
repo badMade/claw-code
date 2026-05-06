@@ -73,9 +73,9 @@ def get_commands(
 ) -> tuple[PortingModule, ...]:
     commands = list(PORTED_COMMANDS)
     if not include_plugin_commands:
-        commands = [module for module in commands if "plugin" not in module.search_text]
+        commands = [module for module in commands if "plugin" not in module.source_search_text]
     if not include_skill_commands:
-        commands = [module for module in commands if "skills" not in module.search_text]
+        commands = [module for module in commands if "skills" not in module.source_search_text]
     return tuple(commands)
 
 

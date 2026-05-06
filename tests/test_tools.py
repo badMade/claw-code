@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
+
 from src.tools import (
     load_tool_snapshot,
     build_tool_backlog,
@@ -93,6 +95,23 @@ class TestTools(unittest.TestCase):
             filtered = get_tools(permission_context=context)
             self.assertNotIn(PORTED_TOOLS[0], filtered)
 
+    def test_get_tools_filters_mcp_by_name_or_source_hint_only(self) -> None:
+        ordinary_tool = PortingModule(
+            name='OrdinaryTool',
+            source_hint='tools/OrdinaryTool.ts',
+            responsibility='mentions mcp boilerplate but is not sourced there',
+            status='mirrored',
+        )
+        mcp_tool = PortingModule(
+            name='RemoteTool',
+            source_hint='tools/mcp/RemoteTool.ts',
+            responsibility='ordinary tool',
+            status='mirrored',
+        )
+
+        with patch('src.tools.PORTED_TOOLS', (ordinary_tool, mcp_tool)):
+            self.assertEqual(get_tools(include_mcp=False), (ordinary_tool,))
+
     def test_find_tools(self) -> None:
         if not PORTED_TOOLS:
             self.skipTest("No tools available in snapshot")
@@ -110,7 +129,6 @@ class TestTools(unittest.TestCase):
         limit = 2
         matches = find_tools("", limit=limit)
         self.assertLessEqual(len(matches), limit)
-
 
     def test_find_tools_excludes_responsibility_boilerplate(self) -> None:
         matches = find_tools("typescript", limit=len(PORTED_TOOLS))

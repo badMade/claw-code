@@ -30,6 +30,10 @@ class PortingModule:
     def name_source_search_text(self) -> str:
         return f"{self.name} {self.source_hint}".lower()
 
+    @functools.cached_property
+    def source_search_text(self) -> str:
+        return self.source_hint.lower()
+
 
 @dataclass(frozen=True)
 class PermissionDenial:

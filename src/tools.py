@@ -87,7 +87,7 @@ def get_tools(
             if module.name in {"BashTool", "FileReadTool", "FileEditTool"}
         ]
     if not include_mcp:
-        tools = [module for module in tools if "mcp" not in module.search_text]
+        tools = [module for module in tools if "mcp" not in module.name_source_search_text]
     return filter_tools_by_permission_context(tuple(tools), permission_context)
 
 

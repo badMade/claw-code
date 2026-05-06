@@ -7,5 +7,5 @@
 ## 2024-05-18 - Avoid Redundant String Allocations in Search Filters
 
 When filtering lists of `PortingModule` objects (like tools and commands) based on string containment, avoid calling `.lower()` and concatenating strings inside loops.
-The `PortingModule` dataclass has a `@functools.cached_property` called `search_text` which pre-computes the lowercased, concatenated string representation.
-Using this cached property inside list comprehensions (e.g., `[m for m in modules if query in m.search_text]`) prevents redundant string allocations and yields significant performance improvements (e.g., 20-25% faster loop iterations).
+Choose the narrowest cached search surface that preserves the caller's semantics: `search_text` is appropriate for free-text ranking across name, source hint, and responsibility, while `name_source_search_text` should be used for command/tool name-and-path lookup and `source_search_text` should be used for source-path classification filters such as plugin, skill, or MCP inclusion.
+Using the right cached property inside list comprehensions prevents redundant string allocations without broadening field-specific filters into responsibility boilerplate matches.
