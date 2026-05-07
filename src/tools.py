@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
 
-from .models import PortingBacklog, PortingModule
+from .models import PortingBacklog, PortingModule, find_modules
 from .permissions import ToolPermissionContext
 
 SNAPSHOT_PATH = (
@@ -97,13 +97,7 @@ def get_tools(
 
 
 def find_tools(query: str, limit: int = 20) -> list[PortingModule]:
-    needle = query.lower()
-    matches = [
-        module
-        for module in PORTED_TOOLS
-        if needle in module.name.lower() or needle in module.source_hint.lower()
-    ]
-    return matches[:limit]
+    return find_modules(query, PORTED_TOOLS, limit)
 
 
 def execute_tool(name: str, payload: str = "") -> ToolExecution:

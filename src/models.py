@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 
@@ -25,6 +26,14 @@ class PortingModule:
     @functools.cached_property
     def search_text(self) -> str:
         return f"{self.name} {self.source_hint} {self.responsibility}".lower()
+
+
+def find_modules(
+    query: str, modules: Iterable[PortingModule], limit: int = 20
+) -> list[PortingModule]:
+    """Find modules matching the query string, up to the specified limit."""
+    needle = query.lower()
+    return [module for module in modules if needle in module.search_text][:limit]
 
 
 @dataclass(frozen=True)

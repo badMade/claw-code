@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from types import MappingProxyType
 
-from .models import PortingBacklog, PortingModule
+from .models import PortingBacklog, PortingModule, find_modules
 
 SNAPSHOT_PATH = (
     Path(__file__).resolve().parent / "reference_data" / "commands_snapshot.json"
@@ -84,13 +84,7 @@ def get_commands(
 
 
 def find_commands(query: str, limit: int = 20) -> list[PortingModule]:
-    needle = query.lower()
-    matches = [
-        module
-        for module in PORTED_COMMANDS
-        if needle in module.name.lower() or needle in module.source_hint.lower()
-    ]
-    return matches[:limit]
+    return find_modules(query, PORTED_COMMANDS, limit)
 
 
 def execute_command(name: str, prompt: str = "") -> CommandExecution:
