@@ -116,8 +116,8 @@ class PortRuntime:
         history.add('registry', f'commands={len(PORTED_COMMANDS)}, tools={len(PORTED_TOOLS)}')
         matches = self.route_prompt(prompt, limit=limit)
         registry = build_execution_registry()
-        command_execs = tuple(registry.command(match.name).execute(prompt) for match in matches if match.kind == 'command' and registry.command(match.name))
-        tool_execs = tuple(registry.tool(match.name).execute(prompt) for match in matches if match.kind == 'tool' and registry.tool(match.name))
+        command_execs = tuple(cmd.execute(prompt) for match in matches if match.kind == 'command' and (cmd := registry.command(match.name)))
+        tool_execs = tuple(tool.execute(prompt) for match in matches if match.kind == 'tool' and (tool := registry.tool(match.name)))
         denials = tuple(self._infer_permission_denials(matches))
         stream_events = tuple(engine.stream_submit_message(
             prompt,
