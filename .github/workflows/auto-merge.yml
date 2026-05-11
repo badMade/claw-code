@@ -41,7 +41,22 @@ jobs:
 
               // Filter out this specific run if it's in the list
               const relevantChecks = checkRuns.check_runs.filter(run => run.name !== 'auto-merge');
-              if (relevantChecks.length === 0) continue;
+
+              if (relevantChecks.length === 0) {
+                console.log('No relevant checks found. Proceeding to merge.');
+                try {
+                  await github.rest.pulls.merge({
+                    owner,
+                    repo,
+                    pull_number: pr.number,
+                    merge_method: 'squash'
+                  });
+                  console.log('Successfully merged PR');
+                } catch (e) {
+                  console.log('Merge failed or already merged:', e.message);
+                }
+                return;
+              }
 
               const allCompleted = relevantChecks.every(run => run.status === 'completed');
 
