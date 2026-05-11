@@ -40,9 +40,10 @@ jobs:
                 ref: pr.head.sha
               });
 
-              const allCompleted = checkRuns.check_runs.every(run => run.status === 'completed');
+              const relevantChecks = checkRuns.check_runs.filter(run => run.name !== 'auto-merge');
+              const allCompleted = relevantChecks.every(run => run.status === 'completed');
               if (allCompleted) {
-                const allSuccess = checkRuns.check_runs.every(run => run.conclusion === 'success' || run.conclusion === 'skipped' || run.conclusion === 'neutral');
+                const allSuccess = relevantChecks.every(run => run.conclusion === 'success' || run.conclusion === 'skipped' || run.conclusion === 'neutral');
                 if (allSuccess) {
                   return; // Checks passed, proceed to merge
                 } else {
