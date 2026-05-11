@@ -45,11 +45,14 @@ jobs:
                 ref,
               });
 
+              // Filter out this specific check run so it doesn't wait for itself
+              const relevantRuns = checkRuns.check_runs.filter(run => run.name !== context.workflow && run.name !== context.job && run.name !== 'auto-merge');
+
               // Check if any run is still in progress
-              const inProgress = checkRuns.check_runs.some(run => run.status !== 'completed');
+              const inProgress = relevantRuns.some(run => run.status !== 'completed');
               if (!inProgress) {
                 // Determine if all completed checks were successful
-                const allSuccessful = checkRuns.check_runs.every(
+                const allSuccessful = relevantRuns.every(
                   run => run.conclusion === 'success' || run.conclusion === 'neutral' || run.conclusion === 'skipped'
                 );
 
