@@ -159,14 +159,15 @@ class QueryEnginePort:
         return '\n'.join(summary_lines)
 
     def _render_structured_output(self, payload: dict[str, object]) -> str:
-        last_error: Exception | None = None
-        for _ in range(self.config.structured_retry_limit):
-            try:
-                return json.dumps(payload, indent=2)
-            except (TypeError, ValueError) as exc:  # pragma: no cover - defensive branch
-                last_error = exc
-                payload = {'summary': ['structured output retry'], 'session_id': self.session_id}
-        raise RuntimeError('structured output rendering failed') from last_error
+        try:
+            return json.dumps(payload, indent=2)
+        except (TypeError, ValueError) as exc:  # pragma: no cover - defensive branch
+            if self.config.structured_retry_limit > 1:
+                try:
+                    return json.dumps({'summary': ['structured output retry'], 'session_id': self.session_id}, indent=2)
+                except (TypeError, ValueError):
+                    pass
+            raise RuntimeError('structured output rendering failed') from exc
 
     def render_summary(self) -> str:
         command_backlog = build_command_backlog()
