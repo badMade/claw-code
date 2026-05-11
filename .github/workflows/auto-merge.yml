@@ -1,17 +1,14 @@
 name: auto-merge
 
-
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-
 
 permissions:
   pull-requests: write
   contents: write
   checks: read
   statuses: read
-
 
 jobs:
   auto-merge:
@@ -24,7 +21,6 @@ jobs:
       - name: Wait for CI checks to initialize
         run: sleep 300
 
-
       - name: Wait for checks to complete
         uses: actions/github-script@v7
         id: wait-checks
@@ -34,11 +30,43 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-
             // Wait up to 5 minutes for checks to complete
             for (let i = 0; i < 10; i++) {
               await new Promise(r => setTimeout(r, 30000));
 
-
               const { data: checkRuns } = await github.rest.checks.listForRef({
                 owner, repo,
+                ref: pr.head.sha,
+              });
+
+              // Filter out this specific run if it's in the list
+              const relevantChecks = checkRuns.check_runs.filter(run => run.name !== 'auto-merge');
+              if (relevantChecks.length === 0) continue;
+
+              const allCompleted = relevantChecks.every(run => run.status === 'completed');
+
+              if (allCompleted) {
+                const allSuccess = relevantChecks.every(
+                  run => run.conclusion === 'success' || run.conclusion === 'skipped' || run.conclusion === 'neutral'
+                );
+
+                if (allSuccess) {
+                  try {
+                    await github.rest.pulls.merge({
+                      owner,
+                      repo,
+                      pull_number: pr.number,
+                      merge_method: 'squash'
+                    });
+                    console.log('Successfully merged PR');
+                  } catch (e) {
+                    console.log('Merge failed or already merged:', e.message);
+                  }
+                  return;
+                } else {
+                  core.setFailed('Some checks failed');
+                  return;
+                }
+              }
+            }
+            core.setFailed('Timeout waiting for checks');
