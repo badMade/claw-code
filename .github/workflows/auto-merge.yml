@@ -33,12 +33,33 @@ jobs:
             const pr = context.payload.pull_request;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-
+            const ref = pr.head.sha;
 
             // Wait up to 5 minutes for checks to complete
             for (let i = 0; i < 10; i++) {
               await new Promise(r => setTimeout(r, 30000));
 
-
               const { data: checkRuns } = await github.rest.checks.listForRef({
-                owner, repo,
+                owner,
+                repo,
+                ref,
+              });
+
+              // Check if any run is still in progress
+              const inProgress = checkRuns.check_runs.some(run => run.status !== 'completed');
+              if (!inProgress) {
+                // Determine if all completed checks were successful
+                const allSuccessful = checkRuns.check_runs.every(
+                  run => run.conclusion === 'success' || run.conclusion === 'neutral' || run.conclusion === 'skipped'
+                );
+
+                if (allSuccessful) {
+                  return 'success';
+                } else {
+                  core.setFailed('Some CI checks failed.');
+                  return 'failure';
+                }
+              }
+            }
+            core.setFailed('CI checks did not complete in time.');
+            return 'timeout';
