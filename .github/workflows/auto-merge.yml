@@ -1,17 +1,14 @@
 name: auto-merge
 
-
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-
 
 permissions:
   pull-requests: write
   contents: write
   checks: read
   statuses: read
-
 
 jobs:
   auto-merge:
@@ -24,9 +21,8 @@ jobs:
       - name: Wait for CI checks to initialize
         run: sleep 300
 
-
       - name: Wait for checks to complete
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         id: wait-checks
         with:
           script: |
@@ -34,11 +30,44 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-
             // Wait up to 5 minutes for checks to complete
             for (let i = 0; i < 10; i++) {
               await new Promise(r => setTimeout(r, 30000));
 
-
               const { data: checkRuns } = await github.rest.checks.listForRef({
-                owner, repo,
+                owner,
+                repo,
+                ref: pr.head.sha
+              });
+
+              const isPending = checkRuns.check_runs.some(
+                run => run.status !== 'completed' && run.name !== 'auto-merge'
+              );
+
+              if (!isPending) {
+                const isSuccess = checkRuns.check_runs.every(
+                  run => run.conclusion === 'success' || run.conclusion === 'skipped' || run.name === 'auto-merge'
+                );
+
+                if (isSuccess) {
+                  return 'success';
+                } else {
+                  core.setFailed('Some checks failed');
+                  return 'failure';
+                }
+              }
+            }
+            core.setFailed('Checks timed out');
+            return 'timeout';
+
+      - name: Auto-merge PR
+        if: steps.wait-checks.outputs.result == 'success' && contains(github.event.pull_request.labels.*.name, 'automerge')
+        uses: actions/github-script@v9
+        with:
+          script: |
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              merge_method: 'squash'
+            });
