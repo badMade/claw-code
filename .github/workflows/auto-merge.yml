@@ -34,11 +34,17 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-
             // Wait up to 5 minutes for checks to complete
             for (let i = 0; i < 10; i++) {
               await new Promise(r => setTimeout(r, 30000));
 
-
               const { data: checkRuns } = await github.rest.checks.listForRef({
                 owner, repo,
+                ref: context.payload.pull_request.head.sha
+              });
+
+              const allCompleted = checkRuns.check_runs.every(run => run.status === 'completed');
+              if (allCompleted) {
+                return;
+              }
+            }
