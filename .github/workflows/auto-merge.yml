@@ -1,10 +1,8 @@
 name: auto-merge
 
-
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-
 
 permissions:
   pull-requests: write
@@ -12,18 +10,16 @@ permissions:
   checks: read
   statuses: read
 
-
 jobs:
   auto-merge:
     # Skip fork PRs
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE20: true
     steps:
       - name: Wait for CI checks to initialize
         run: sleep 300
-
 
       - name: Wait for checks to complete
         uses: actions/github-script@v7
@@ -34,11 +30,56 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-
             // Wait up to 5 minutes for checks to complete
             for (let i = 0; i < 10; i++) {
               await new Promise(r => setTimeout(r, 30000));
 
-
               const { data: checkRuns } = await github.rest.checks.listForRef({
-                owner, repo,
+                owner,
+                repo,
+                ref: pr.head.sha
+              });
+
+              // Check if there are any non-successful checks
+              // Skip the 'auto-merge' check itself
+              const relevantChecks = checkRuns.check_runs.filter(c => c.name !== 'auto-merge');
+
+              const allCompleted = relevantChecks.every(c => c.status === 'completed');
+              const allSuccess = relevantChecks.every(c => c.conclusion === 'success' || c.conclusion === 'neutral' || c.conclusion === 'skipped');
+
+              if (allCompleted) {
+                if (allSuccess) {
+                  console.log("All checks passed!");
+                  return;
+                } else {
+                  console.log("Some checks failed.");
+                  process.exit(1);
+                }
+              }
+              console.log(`Waiting for checks... (${i + 1}/10)`);
+            }
+            console.log("Timeout waiting for checks.");
+            process.exit(1);
+
+      - name: Auto-merge PR
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) return;
+
+            // Check if PR has auto-merge label
+            const hasAutoMergeLabel = pr.labels.some(label => label.name === 'auto-merge');
+            if (!hasAutoMergeLabel) {
+              console.log('PR does not have auto-merge label. Skipping.');
+              return;
+            }
+
+            console.log(`Merging PR #${pr.number}...`);
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              merge_method: 'squash'
+            });
