@@ -1,17 +1,14 @@
 name: auto-merge
 
-
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled]
-
 
 permissions:
   pull-requests: write
   contents: write
   checks: read
   statuses: read
-
 
 jobs:
   auto-merge:
@@ -24,7 +21,6 @@ jobs:
       - name: Wait for CI checks to initialize
         run: sleep 300
 
-
       - name: Wait for checks to complete
         uses: actions/github-script@v7
         id: wait-checks
@@ -34,11 +30,34 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-
             // Wait up to 5 minutes for checks to complete
             for (let i = 0; i < 10; i++) {
               await new Promise(r => setTimeout(r, 30000));
 
-
               const { data: checkRuns } = await github.rest.checks.listForRef({
-                owner, repo,
+                owner,
+                repo,
+                ref: pr.head.sha
+              });
+
+              // Filter out the auto-merge check itself
+              const relevantChecks = checkRuns.check_runs.filter(check => check.name !== 'auto-merge');
+              const allCompleted = relevantChecks.every(check => check.status === 'completed');
+
+              if (allCompleted) {
+                const allSuccess = relevantChecks.every(check =>
+                  check.conclusion === 'success' || check.conclusion === 'skipped'
+                );
+                if (allSuccess) {
+                  console.log("All checks passed!");
+                  return true;
+                } else {
+                  console.log("Some checks failed.");
+                  core.setFailed("Checks failed.");
+                  return false;
+                }
+              }
+              console.log("Waiting for checks to complete...");
+            }
+            core.setFailed("Timed out waiting for checks.");
+            return false;
