@@ -642,7 +642,7 @@ fn shell_command(command: &str) -> CommandWithStdin {
     #[cfg(not(windows))]
     let command_builder = {
         let mut command_builder = Command::new("sh");
-        command_builder.arg("-c").arg(command);
+        command_builder.arg("-c").arg("eval \"$1\"").arg("--").arg(command);
         CommandWithStdin::new(command_builder)
     };
 
