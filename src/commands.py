@@ -46,7 +46,7 @@ def built_in_command_names() -> frozenset[str]:
 
 
 def build_command_backlog() -> PortingBacklog:
-    return PortingBacklog(title="Command surface", modules=list(PORTED_COMMANDS))
+    return PortingBacklog(title="Command surface", modules=PORTED_COMMANDS)
 
 
 def command_names() -> list[str]:

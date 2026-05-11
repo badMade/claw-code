@@ -31,7 +31,7 @@ class TestTools(unittest.TestCase):
         self.assertIsInstance(backlog, PortingBacklog)
         self.assertEqual(backlog.title, 'Tool surface')
         self.assertEqual(len(backlog.modules), len(PORTED_TOOLS))
-        self.assertEqual(backlog.modules, list(PORTED_TOOLS))
+        self.assertEqual(backlog.modules, PORTED_TOOLS)
 
     def test_tool_names(self) -> None:
         names = tool_names()
