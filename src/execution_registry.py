@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cached_property
 
 from .commands import PORTED_COMMANDS, execute_command
 from .tools import PORTED_TOOLS, execute_tool
@@ -29,19 +30,19 @@ class ExecutionRegistry:
     commands: tuple[MirroredCommand, ...]
     tools: tuple[MirroredTool, ...]
 
+    @cached_property
+    def _command_map(self) -> dict[str, MirroredCommand]:
+        return {command.name.lower(): command for command in self.commands}
+
+    @cached_property
+    def _tool_map(self) -> dict[str, MirroredTool]:
+        return {tool.name.lower(): tool for tool in self.tools}
+
     def command(self, name: str) -> MirroredCommand | None:
-        lowered = name.lower()
-        for command in self.commands:
-            if command.name.lower() == lowered:
-                return command
-        return None
+        return self._command_map.get(name.lower())
 
     def tool(self, name: str) -> MirroredTool | None:
-        lowered = name.lower()
-        for tool in self.tools:
-            if tool.name.lower() == lowered:
-                return tool
-        return None
+        return self._tool_map.get(name.lower())
 
 
 def build_execution_registry() -> ExecutionRegistry:
