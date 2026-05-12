@@ -8,6 +8,7 @@ from src.setup import run_setup, WorkspaceSetup
 from src.prefetch import PrefetchResult
 from src.deferred_init import DeferredInitResult
 
+
 class SetupTests(unittest.TestCase):
     @mock.patch('src.setup.run_deferred_init')
     @mock.patch('src.setup.build_workspace_setup')
@@ -34,7 +35,7 @@ class SetupTests(unittest.TestCase):
         mock_workspace = WorkspaceSetup(
             python_version="3.9.0",
             implementation="CPython",
-            platform_name="Linux"
+            platform_name="Linux",
         )
         mock_build_workspace_setup.return_value = mock_workspace
 
@@ -44,7 +45,7 @@ class SetupTests(unittest.TestCase):
             plugin_init=False,
             skill_init=False,
             mcp_prefetch=False,
-            session_hooks=False
+            session_hooks=False,
         )
         mock_run_deferred_init.return_value = mock_deferred_init
 
