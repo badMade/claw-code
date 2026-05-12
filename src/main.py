@@ -18,43 +18,49 @@ from .tool_pool import assemble_tool_pool
 from .tools import execute_tool, get_tool, get_tools, render_tool_index
 
 
-
-
 def handle_summary(args: argparse.Namespace) -> int:
     manifest = build_port_manifest()
     print(QueryEnginePort(manifest).render_summary())
     return 0
+
 
 def handle_manifest(args: argparse.Namespace) -> int:
     manifest = build_port_manifest()
     print(manifest.to_markdown())
     return 0
 
+
 def handle_parity_audit(args: argparse.Namespace) -> int:
     print(run_parity_audit().to_markdown())
     return 0
+
 
 def handle_setup_report(args: argparse.Namespace) -> int:
     print(run_setup().as_markdown())
     return 0
 
+
 def handle_command_graph(args: argparse.Namespace) -> int:
     print(build_command_graph().as_markdown())
     return 0
+
 
 def handle_tool_pool(args: argparse.Namespace) -> int:
     print(assemble_tool_pool().as_markdown())
     return 0
 
+
 def handle_bootstrap_graph(args: argparse.Namespace) -> int:
     print(build_bootstrap_graph().as_markdown())
     return 0
+
 
 def handle_subsystems(args: argparse.Namespace) -> int:
     manifest = build_port_manifest()
     for subsystem in manifest.top_level_modules[: args.limit]:
         print(f'{subsystem.name}\t{subsystem.file_count}\t{subsystem.notes}')
     return 0
+
 
 def handle_commands(args: argparse.Namespace) -> int:
     if args.query:
@@ -65,6 +71,7 @@ def handle_commands(args: argparse.Namespace) -> int:
         output_lines.extend(f'- {module.name} — {module.source_hint}' for module in commands[: args.limit])
         print('\n'.join(output_lines))
     return 0
+
 
 def handle_tools(args: argparse.Namespace) -> int:
     if args.query:
@@ -77,6 +84,7 @@ def handle_tools(args: argparse.Namespace) -> int:
         print('\n'.join(output_lines))
     return 0
 
+
 def handle_route(args: argparse.Namespace) -> int:
     matches = PortRuntime().route_prompt(args.prompt, limit=args.limit)
     if not matches:
@@ -86,9 +94,11 @@ def handle_route(args: argparse.Namespace) -> int:
         print(f'{match.kind}\t{match.name}\t{match.score}\t{match.source_hint}')
     return 0
 
+
 def handle_bootstrap(args: argparse.Namespace) -> int:
     print(PortRuntime().bootstrap_session(args.prompt, limit=args.limit).as_markdown())
     return 0
+
 
 def handle_turn_loop(args: argparse.Namespace) -> int:
     results = PortRuntime().run_turn_loop(args.prompt, limit=args.limit, max_turns=args.max_turns, structured_output=args.structured_output)
@@ -98,6 +108,7 @@ def handle_turn_loop(args: argparse.Namespace) -> int:
         print(f'stop_reason={result.stop_reason}')
     return 0
 
+
 def handle_flush_transcript(args: argparse.Namespace) -> int:
     engine = QueryEnginePort.from_workspace()
     engine.submit_message(args.prompt)
@@ -106,30 +117,37 @@ def handle_flush_transcript(args: argparse.Namespace) -> int:
     print(f'flushed={engine.transcript_store.flushed}')
     return 0
 
+
 def handle_load_session(args: argparse.Namespace) -> int:
     session = load_session(args.session_id)
     print(f'{session.session_id}\n{len(session.messages)} messages\nin={session.input_tokens} out={session.output_tokens}')
     return 0
 
+
 def handle_remote_mode(args: argparse.Namespace) -> int:
     print(run_remote_mode(args.target).as_text())
     return 0
+
 
 def handle_ssh_mode(args: argparse.Namespace) -> int:
     print(run_ssh_mode(args.target).as_text())
     return 0
 
+
 def handle_teleport_mode(args: argparse.Namespace) -> int:
     print(run_teleport_mode(args.target).as_text())
     return 0
+
 
 def handle_direct_connect_mode(args: argparse.Namespace) -> int:
     print(run_direct_connect(args.target).as_text())
     return 0
 
+
 def handle_deep_link_mode(args: argparse.Namespace) -> int:
     print(run_deep_link(args.target).as_text())
     return 0
+
 
 def handle_show_command(args: argparse.Namespace) -> int:
     module = get_command(args.name)
@@ -139,6 +157,7 @@ def handle_show_command(args: argparse.Namespace) -> int:
     print('\n'.join([module.name, module.source_hint, module.responsibility]))
     return 0
 
+
 def handle_show_tool(args: argparse.Namespace) -> int:
     module = get_tool(args.name)
     if module is None:
@@ -147,15 +166,18 @@ def handle_show_tool(args: argparse.Namespace) -> int:
     print('\n'.join([module.name, module.source_hint, module.responsibility]))
     return 0
 
+
 def handle_exec_command(args: argparse.Namespace) -> int:
     result = execute_command(args.name, args.prompt)
     print(result.message)
     return 0 if result.handled else 1
 
+
 def handle_exec_tool(args: argparse.Namespace) -> int:
     result = execute_tool(args.name, args.payload)
     print(result.message)
     return 0 if result.handled else 1
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Python porting workspace for the Claude Code rewrite effort')
@@ -270,12 +292,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-
-    if hasattr(args, 'func'):
-        return args.func(args)
-
-    parser.error(f'unknown command: {args.command}')
-    return 2
+    return args.func(args)
 
 
 if __name__ == '__main__':
