@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "selfheal-demo"
+version = "0.1.0"
+description = "Self-healing Python demo"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic-settings>=2.0.0",
+    "tenacity>=8.2.0",
+    "structlog>=23.1.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "flask>=3.0.0",
+    "fastapi>=0.100.0",
+    "httpx>=0.24.0"
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/selfheal"]

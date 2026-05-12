@@ -158,7 +158,7 @@ class QueryEnginePort:
             return self._render_structured_output(payload)
         return '\n'.join(summary_lines)
 
-    def _render_structured_output(self, payload: dict[str, object]) -> str:
+    def _render_structured_output(self, payload: Mapping[str, object]) -> str:
         last_error: Exception | None = None
         for _ in range(self.config.structured_retry_limit):
             try:
