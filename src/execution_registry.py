@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cached_property
+from types import MappingProxyType
 
 from .commands import PORTED_COMMANDS, execute_command
 from .tools import PORTED_TOOLS, execute_tool
@@ -31,12 +33,22 @@ class ExecutionRegistry:
     tools: tuple[MirroredTool, ...]
 
     @cached_property
-    def _command_map(self) -> dict[str, MirroredCommand]:
-        return {command.name.lower(): command for command in self.commands}
+    def _command_map(self) -> Mapping[str, MirroredCommand]:
+        lookup: dict[str, MirroredCommand] = {}
+        for command in self.commands:
+            name_lower = command.name.lower()
+            if name_lower not in lookup:
+                lookup[name_lower] = command
+        return MappingProxyType(lookup)
 
     @cached_property
-    def _tool_map(self) -> dict[str, MirroredTool]:
-        return {tool.name.lower(): tool for tool in self.tools}
+    def _tool_map(self) -> Mapping[str, MirroredTool]:
+        lookup: dict[str, MirroredTool] = {}
+        for tool in self.tools:
+            name_lower = tool.name.lower()
+            if name_lower not in lookup:
+                lookup[name_lower] = tool
+        return MappingProxyType(lookup)
 
     def command(self, name: str) -> MirroredCommand | None:
         return self._command_map.get(name.lower())

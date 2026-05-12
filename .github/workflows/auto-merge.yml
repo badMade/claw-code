@@ -30,7 +30,7 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
-            // Wait up to 5 minutes for checks to complete
+            // Wait up to 10 minutes for checks to complete (300s init + 10×30s poll)
             for (let i = 0; i < 10; i++) {
               await new Promise(r => setTimeout(r, 30000));
 
@@ -43,19 +43,8 @@ jobs:
               const relevantChecks = checkRuns.check_runs.filter(run => run.name !== 'auto-merge');
 
               if (relevantChecks.length === 0) {
-                console.log('No relevant checks found. Proceeding to merge.');
-                try {
-                  await github.rest.pulls.merge({
-                    owner,
-                    repo,
-                    pull_number: pr.number,
-                    merge_method: 'squash'
-                  });
-                  console.log('Successfully merged PR');
-                } catch (e) {
-                  console.log('Merge failed or already merged:', e.message);
-                }
-                return;
+                console.log('No relevant checks found yet, continuing to wait.');
+                continue;
               }
 
               const allCompleted = relevantChecks.every(run => run.status === 'completed');
