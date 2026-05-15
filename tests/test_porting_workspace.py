@@ -235,6 +235,21 @@ class PortingWorkspaceTests(unittest.TestCase):
         self.assertIn('Mirrored command', registry.command('review').execute('review security'))
         self.assertIn('Mirrored tool', registry.tool('MCPTool').execute('fetch mcp resources'))
 
+    def test_execution_registry_lookup_prefers_first_duplicate_case_insensitive(self) -> None:
+        from src.execution_registry import ExecutionRegistry, MirroredCommand, MirroredTool
+
+        first_command = MirroredCommand(name='Review', source_hint='first')
+        second_command = MirroredCommand(name='review', source_hint='second')
+        first_tool = MirroredTool(name='MCPTool', source_hint='first')
+        second_tool = MirroredTool(name='mcptool', source_hint='second')
+        registry = ExecutionRegistry(
+            commands=(first_command, second_command),
+            tools=(first_tool, second_tool),
+        )
+
+        self.assertIs(registry.command('ReViEw'), first_command)
+        self.assertIs(registry.tool('MCPTool'), first_tool)
+
     def test_bootstrap_graph_and_direct_modes_run(self) -> None:
         graph_result = subprocess.run([sys.executable, '-m', 'src.main', 'bootstrap-graph'], check=True, capture_output=True, text=True)
         direct_result = subprocess.run([sys.executable, '-m', 'src.main', 'direct-connect-mode', 'workspace'], check=True, capture_output=True, text=True)

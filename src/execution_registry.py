@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import functools
+from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from .commands import PORTED_COMMANDS, execute_command
 from .tools import PORTED_TOOLS, execute_tool
@@ -34,12 +36,22 @@ class ExecutionRegistry:
     # Why: Prevents repetitive O(N) list traversals when command/tool lookups are executed frequently.
     # Impact: Reduces benchmarked lookup times by ~98%.
     @functools.cached_property
-    def _command_map(self) -> dict[str, MirroredCommand]:
-        return {cmd.name.lower(): cmd for cmd in reversed(self.commands)}
+    def _command_map(self) -> Mapping[str, MirroredCommand]:
+        lookup: dict[str, MirroredCommand] = {}
+        for command in self.commands:
+            key = command.name.lower()
+            if key not in lookup:
+                lookup[key] = command
+        return MappingProxyType(lookup)
 
     @functools.cached_property
-    def _tool_map(self) -> dict[str, MirroredTool]:
-        return {tool.name.lower(): tool for tool in reversed(self.tools)}
+    def _tool_map(self) -> Mapping[str, MirroredTool]:
+        lookup: dict[str, MirroredTool] = {}
+        for tool in self.tools:
+            key = tool.name.lower()
+            if key not in lookup:
+                lookup[key] = tool
+        return MappingProxyType(lookup)
 
     def command(self, name: str) -> MirroredCommand | None:
         return self._command_map.get(name.lower())
