@@ -41,4 +41,42 @@ jobs:
 
 
               const { data: checkRuns } = await github.rest.checks.listForRef({
-                owner, repo,
+                owner,
+                repo,
+                ref: pr.head.sha
+              });
+
+              // Exclude this action's check run if it is still running
+              const allChecksCompleted = checkRuns.check_runs.every(
+                (check) => check.name === 'auto-merge' || check.status === 'completed'
+              );
+
+              if (allChecksCompleted) {
+                const allChecksSuccessful = checkRuns.check_runs.every(
+                  (check) => check.name === 'auto-merge' || check.conclusion === 'success' || check.conclusion === 'skipped'
+                );
+
+                if (allChecksSuccessful) {
+                  return true;
+                } else {
+                  console.log("Some checks failed.");
+                  return false;
+                }
+              }
+              console.log("Checks still running. Waiting...");
+            }
+            console.log("Timed out waiting for checks.");
+            return false;
+
+      - name: Auto-merge PR
+        if: steps.wait-checks.outputs.result == 'true' && contains(github.event.pull_request.labels.*.name, 'self-heal-schedule')
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              merge_method: 'squash'
+            });
