@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 
@@ -48,7 +49,7 @@ class UsageSummary:
 @dataclass
 class PortingBacklog:
     title: str
-    modules: list[PortingModule] = field(default_factory=list)
+    modules: Sequence[PortingModule] = field(default_factory=tuple)
 
     def summary_lines(self) -> list[str]:
         return [

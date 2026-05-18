@@ -42,7 +42,7 @@ PORTED_TOOLS = load_tool_snapshot()
 
 
 def build_tool_backlog() -> PortingBacklog:
-    return PortingBacklog(title="Tool surface", modules=list(PORTED_TOOLS))
+    return PortingBacklog(title="Tool surface", modules=PORTED_TOOLS)
 
 
 def tool_names() -> list[str]:
