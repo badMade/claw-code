@@ -42,3 +42,20 @@ jobs:
 
               const { data: checkRuns } = await github.rest.checks.listForRef({
                 owner, repo,
+                ref: pr.head.sha
+              });
+
+              const completedChecks = checkRuns.check_runs.filter(c => c.status === 'completed');
+
+              if (completedChecks.length === checkRuns.total_count && checkRuns.total_count > 0) {
+                const failedChecks = completedChecks.filter(c => c.conclusion !== 'success' && c.conclusion !== 'skipped' && c.conclusion !== 'neutral');
+                if (failedChecks.length > 0) {
+                  core.setFailed(`Some checks failed: ${failedChecks.map(c => c.name).join(', ')}`);
+                  return;
+                }
+                console.log('All checks passed!');
+                return;
+              }
+              console.log(`Waiting for checks to complete... (${completedChecks.length}/${checkRuns.total_count})`);
+            }
+            core.setFailed('Timeout waiting for checks to complete');
