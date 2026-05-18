@@ -7,8 +7,7 @@ from pathlib import Path
 ARCHIVE_ROOT = Path(__file__).resolve().parent.parent / 'archive' / 'claude_code_ts_snapshot' / 'src'
 CURRENT_ROOT = Path(__file__).resolve().parent
 REFERENCE_SURFACE_PATH = CURRENT_ROOT / 'reference_data' / 'archive_surface_snapshot.json'
-COMMAND_SNAPSHOT_PATH = CURRENT_ROOT / 'reference_data' / 'commands_snapshot.json'
-TOOL_SNAPSHOT_PATH = CURRENT_ROOT / 'reference_data' / 'tools_snapshot.json'
+MODULES_SNAPSHOT_PATH = CURRENT_ROOT / 'reference_data' / 'modules_snapshot.json'
 
 ARCHIVE_ROOT_FILES = {
     'QueryEngine.ts': 'QueryEngine.py',
@@ -114,8 +113,8 @@ def _reference_surface() -> dict[str, object]:
     return json.loads(REFERENCE_SURFACE_PATH.read_text())
 
 
-def _snapshot_count(path: Path) -> int:
-    return len(json.loads(path.read_text()))
+def _snapshot_count(path: Path, key: str) -> int:
+    return len(json.loads(path.read_text())[key])
 
 
 def run_parity_audit() -> ParityAuditResult:
@@ -131,8 +130,8 @@ def run_parity_audit() -> ParityAuditResult:
         root_file_coverage=(len(root_hits), len(ARCHIVE_ROOT_FILES)),
         directory_coverage=(len(dir_hits), len(ARCHIVE_DIR_MAPPINGS)),
         total_file_ratio=(current_python_files, int(reference['total_ts_like_files'])),
-        command_entry_ratio=(_snapshot_count(COMMAND_SNAPSHOT_PATH), int(reference['command_entry_count'])),
-        tool_entry_ratio=(_snapshot_count(TOOL_SNAPSHOT_PATH), int(reference['tool_entry_count'])),
+        command_entry_ratio=(_snapshot_count(MODULES_SNAPSHOT_PATH, 'commands'), int(reference['command_entry_count'])),
+        tool_entry_ratio=(_snapshot_count(MODULES_SNAPSHOT_PATH, 'tools'), int(reference['tool_entry_count'])),
         missing_root_targets=missing_roots,
         missing_directory_targets=missing_dirs,
     )

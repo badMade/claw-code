@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
@@ -8,10 +7,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from .models import PortingBacklog, PortingModule
-
-SNAPSHOT_PATH = (
-    Path(__file__).resolve().parent / "reference_data" / "commands_snapshot.json"
-)
+from .snapshot import load_modules_snapshot
 
 
 @dataclass(frozen=True)
@@ -25,7 +21,7 @@ class CommandExecution:
 
 @lru_cache(maxsize=1)
 def load_command_snapshot() -> tuple[PortingModule, ...]:
-    raw_entries = json.loads(SNAPSHOT_PATH.read_text())
+    raw_entries = load_modules_snapshot()["commands"]
     return tuple(
         PortingModule(
             name=entry["name"],
