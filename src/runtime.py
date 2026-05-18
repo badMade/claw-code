@@ -36,8 +36,8 @@ class RuntimeSession:
     stream_events: tuple[dict[str, object], ...]
     persisted_session_path: str
 
-    def as_markdown(self) -> str:
-        lines = [
+    def _render_header_section(self) -> list[str]:
+        return [
             '# Runtime Session',
             '',
             f'Prompt: {self.prompt}',
@@ -45,6 +45,10 @@ class RuntimeSession:
             '## Context',
             render_context(self.context),
             '',
+        ]
+
+    def _render_setup_section(self) -> list[str]:
+        return [
             '## Setup',
             f'- Python: {self.setup.python_version} ({self.setup.implementation})',
             f'- Platform: {self.setup.platform_name}',
@@ -53,9 +57,17 @@ class RuntimeSession:
             '## Startup Steps',
             *(f'- {step}' for step in self.setup.startup_steps()),
             '',
+        ]
+
+    def _render_system_init_section(self) -> list[str]:
+        return [
             '## System Init',
             self.system_init_message,
             '',
+        ]
+
+    def _render_routed_matches_section(self) -> list[str]:
+        lines = [
             '## Routed Matches',
         ]
         if self.routed_matches:
@@ -65,24 +77,50 @@ class RuntimeSession:
             )
         else:
             lines.append('- none')
-        lines.extend([
-            '',
+        lines.append('')
+        return lines
+
+    def _render_execution_section(self) -> list[str]:
+        return [
             '## Command Execution',
             *(self.command_execution_messages or ('none',)),
             '',
             '## Tool Execution',
             *(self.tool_execution_messages or ('none',)),
             '',
+        ]
+
+    def _render_stream_events_section(self) -> list[str]:
+        return [
             '## Stream Events',
             *(f"- {event['type']}: {event}" for event in self.stream_events),
             '',
+        ]
+
+    def _render_turn_result_section(self) -> list[str]:
+        return [
             '## Turn Result',
             self.turn_result.output,
             '',
+        ]
+
+    def _render_footer_section(self) -> list[str]:
+        return [
             f'Persisted session path: {self.persisted_session_path}',
             '',
             self.history.as_markdown(),
-        ])
+        ]
+
+    def as_markdown(self) -> str:
+        lines: list[str] = []
+        lines.extend(self._render_header_section())
+        lines.extend(self._render_setup_section())
+        lines.extend(self._render_system_init_section())
+        lines.extend(self._render_routed_matches_section())
+        lines.extend(self._render_execution_section())
+        lines.extend(self._render_stream_events_section())
+        lines.extend(self._render_turn_result_section())
+        lines.extend(self._render_footer_section())
         return '\n'.join(lines)
 
 
