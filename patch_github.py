@@ -1,32 +1,8 @@
-name: auto-merge
+with open(".github/workflows/auto-merge.yml", "r") as f:
+    content = f.read()
 
-on:
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
-
-permissions:
-  pull-requests: write
-  contents: write
-  checks: read
-  statuses: read
-
-jobs:
-  auto-merge:
-    # Skip fork PRs
-    if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    steps:
-      - name: Wait for CI checks to initialize
-        run: sleep 300
-
-      - name: Wait for checks to complete
-        uses: actions/github-script@v7.0.1
-        id: wait-checks
-        with:
-          script: |
-            const pr = context.payload.pull_request;
+# Replace the incomplete script block with the corrected version
+corrected_script = """            const pr = context.payload.pull_request;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
@@ -39,7 +15,10 @@ jobs:
                 ref: pr.head.sha
               });
 
+              // Only consider check runs from GitHub Actions (or relevant apps)
+              // Ignore the auto-merge check run itself if possible
               const relevantChecks = checkRuns.check_runs.filter(cr => cr.name !== 'auto-merge');
+
               const allCompleted = relevantChecks.every(cr => cr.status === 'completed');
               if (allCompleted) {
                 const allSuccess = relevantChecks.every(cr => cr.conclusion === 'success' || cr.conclusion === 'skipped' || cr.conclusion === 'neutral');
@@ -47,6 +26,10 @@ jobs:
                   core.setFailed('Some CI checks failed.');
                   return;
                 }
-                break;
+                break; // All passed
               }
-            }
+            }"""
+
+if "const { data: checkRuns } = await github.rest.checks.listForRef({\n                owner, repo,\n" in content:
+    # Let's just rewrite it completely because it's truncated at the end
+    pass
