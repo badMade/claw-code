@@ -21,9 +21,10 @@ def load_parity_text(path: Path) -> str:
 def ensure_refs_exist(manifest: list[dict], parity_text: str) -> list[tuple[str, str]]:
     missing: list[tuple[str, str]] = []
     for entry in manifest:
+        name = entry["name"]
         for ref in entry.get("parity_refs", []):
             if ref not in parity_text:
-                missing.append((entry["name"], ref))
+                missing.append((name, ref))
     return missing
 
 
@@ -97,8 +98,9 @@ def main() -> int:
 
     coverage = defaultdict(list)
     for entry in manifest:
+        name = entry["name"]
         for ref in entry["parity_refs"]:
-            coverage[ref].append(entry["name"])
+            coverage[ref].append(name)
 
     print("PARITY coverage map")
     for ref, scenarios in coverage.items():
