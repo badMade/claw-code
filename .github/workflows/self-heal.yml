@@ -1,0 +1,146 @@
+name: Self-Heal Automation
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # AUTO-UPDATED
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: selfheal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    name: Auto-Repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: "!startsWith(github.ref_name, 'selfheal-') && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'failure')"
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+        if: hashFiles('rust/Cargo.toml') != ''
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f "pyproject.toml" ]; then pip install -e .[selfheal]; fi
+          pip install ruff pytest
+
+      - name: Run Initial Healthcheck
+        id: pre_healthcheck
+        run: |
+          ./scripts/healthcheck.py > pre_healthcheck.log 2>&1 || echo "Healthcheck failed as expected"
+          cat pre_healthcheck.log
+
+      - name: Run Self-Heal Pipeline
+        id: self_heal
+        continue-on-error: true
+        run: |
+          ./scripts/self_heal.py > repair.log 2>&1
+          cat repair.log
+
+      - name: Run Gates Check
+        id: gates
+        run: |
+          ./scripts/gates.py
+
+      - name: Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-heal-logs
+          path: |
+            pre_healthcheck.log
+            repair.log
+          retention-days: 7
+
+      - name: Check for Open PRs and Clean Stale
+        id: check_prs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Clean stale PRs (older than 7 days)
+          stale_prs=$(gh pr list --label "self-heal" --state open --json number,createdAt -q '.[] | select(.createdAt < (now - 604800 | todate)) | .number')
+          for pr in $stale_prs; do
+            gh pr close "$pr" --comment "Auto-closing stale self-heal PR."
+          done
+
+          # Check for duplicates in recent window (last 24 hours)
+          open_prs=$(gh pr list --label "self-heal" --state open --json number,createdAt -q '[.[] | select(.createdAt > (now - 86400 | todate))] | length')
+          if [ "$open_prs" -gt "0" ]; then
+            echo "duplicate=true" >> $GITHUB_OUTPUT
+          else
+            echo "duplicate=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.gates.outcome == 'success' && steps.check_prs.outputs.duplicate == 'false' && steps.self_heal.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="selfheal-$(date +%Y%m%d%H%M%S)"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH_NAME"
+          git add .
+          git commit -m "Auto-repair codebase drift"
+          git push origin "$BRANCH_NAME"
+
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            PR_TITLE="[Self-Heal Scheduled] Drift fixes"
+            TRIGGER_REASON="Proactive scheduled run based on repository telemetry."
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            PR_TITLE="[Self-Heal Reactive] CI fix"
+            TRIGGER_REASON="Reactive run triggered by a failed CI workflow."
+          else
+            PR_TITLE="[Self-Heal Manual] Repair"
+            TRIGGER_REASON="Manually dispatched repair run."
+          fi
+
+          CURRENT_SCHEDULE=$(grep "schedule:" .github/self-heal-schedule.yml | cut -d"'" -f2 || echo "Unknown")
+          RATIONALE=$(grep "rationale:" .github/self-heal-schedule.yml | cut -d"'" -f2 || echo "Unknown")
+          DRIFT_SUMMARY=$(git diff main --stat || echo "See files changed tab.")
+
+          PR_BODY="### Automated Code Repair
+
+          **Trigger Reason:** $TRIGGER_REASON
+
+          **Current Schedule:** \`$CURRENT_SCHEDULE\`
+          *Rationale:* $RATIONALE
+
+          **Drift Summary:**
+          \`\`\`
+          $DRIFT_SUMMARY
+          \`\`\`
+
+          **Logs:** Review the attached workflow artifacts (pre_healthcheck.log and repair.log) in the Actions tab for more details.
+
+          Review changes carefully before merging.
+          "
+
+          gh pr create \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --label "self-heal,automation" \
+            --head "$BRANCH_NAME" \
+            --base main
