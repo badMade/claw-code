@@ -8,7 +8,7 @@ on:
   pull_request_review:
     types: [submitted]
   issues:
-    types: [opened, assigned]
+    types: [opened, edited]
 
 concurrency:
   group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
