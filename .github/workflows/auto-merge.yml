@@ -62,6 +62,7 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const prNumber = pr.number;
+            const expectedHeadSha = '${{ steps.wait-checks.outputs.head_sha }}';
 
             // Re-fetch PR to get current state
             const { data: currentPR } = await github.rest.pulls.get({
@@ -74,9 +75,15 @@ jobs:
               return;
             }
 
+            if (expectedHeadSha && currentPR.head.sha !== expectedHeadSha) {
+              core.setOutput('should_merge', 'false');
+              core.setOutput('reason', 'head_sha_changed');
+              return;
+            }
+
             // Check all CI checks pass
             const { data: checkRuns } = await github.rest.checks.listForRef({
-              owner, repo, ref: pr.head.sha
+              owner, repo, ref: expectedHeadSha || currentPR.head.sha
             });
 
             const externalChecks = checkRuns.check_runs.filter(
