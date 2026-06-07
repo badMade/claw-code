@@ -173,8 +173,12 @@ jobs:
             const reviewerNames = '${{ steps.check-status.outputs.reviewer_names }}';
 
             try {
+              // Pin the merge to the head SHA that was validated above. If new
+              // commits landed during the run, GitHub rejects the merge (409)
+              // and the catch block reports it, avoiding merging an unchecked commit.
               await github.rest.pulls.merge({
                 owner, repo, pull_number: prNumber,
+                sha: pr.head.sha,
                 merge_method: 'squash'
               });
 
