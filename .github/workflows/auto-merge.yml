@@ -29,7 +29,9 @@ jobs:
             const pr = context.payload.pull_request;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            core.setOutput('head_sha', context.sha);
             // Wait up to 5 minutes for checks to complete
             for (let i = 0; i < 10; i++) {
               await new Promise(r => setTimeout(r, 30000));
