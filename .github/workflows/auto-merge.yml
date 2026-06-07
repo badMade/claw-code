@@ -32,10 +32,19 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             core.setOutput('head_sha', context.sha);
-            // Wait up to 5 minutes for checks to complete
-            for (let i = 0; i < 10; i++) {
-              await new Promise(r => setTimeout(r, 30000));
+            }
 
+            // Final verification after the loop
+            const { data: { check_runs } } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha
+            });
+
+            const incomplete = check_runs.filter(run => run.status !== 'completed' || run.conclusion !== 'success');
+            if (incomplete.length > 0) {
+              throw new Error(`Auto-merge aborted: Some checks did not pass: ${incomplete.map(r => r.name).join(', ')}`);
+            }
               const { data: checkRuns } = await github.rest.checks.listForRef({
                 owner, repo,
                 ref: pr.head.sha,
