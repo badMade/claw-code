@@ -46,22 +46,20 @@ jobs:
               throw new Error(`Auto-merge aborted: Some checks did not pass: ${incomplete.map(r => r.name).join(', ')}`);
             }
               const { data: checkRuns } = await github.rest.checks.listForRef({
-                owner, repo,
-                ref: pr.head.sha,
+                owner,
+                repo,
+                ref: headSha,
               });
 
               // Filter out this workflow's own check
-              const externalChecks = checkRuns.check_runs.filter(
-                c => c.name !== 'auto-merge'
-              );
+              const externalChecks = checkRuns.check_runs.filter(c => c.name !== 'auto-merge');
 
-              if (externalChecks.length === 0) continue;
+              const pending = externalChecks.filter(c => c.status !== 'completed');
+              if (externalChecks.length > 0 && pending.length === 0) {
+                break;
+              }
 
-              const pending = externalChecks.filter(
-                c => !['completed'].includes(c.status)
-              );
-
-              if (pending.length === 0) break;
+              await new Promise(r => setTimeout(r, 30000));
             }
 
       - name: Check CI status and reviews
