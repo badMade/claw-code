@@ -29,30 +29,21 @@ jobs:
             const pr = context.payload.pull_request;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            core.setOutput('head_sha', context.sha);
-            }
+            const headSha = pr.head.sha;
 
-            // Final verification after the loop
-            const { data: { check_runs } } = await github.rest.checks.listForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: context.sha
-            });
+            // Expose the validated head SHA so later steps gate on the exact
+            // commit that was checked here (not a stale or moved head).
+            core.setOutput('head_sha', headSha);
 
-            const incomplete = check_runs.filter(run => run.status !== 'completed' || run.conclusion !== 'success');
-            if (incomplete.length > 0) {
-              throw new Error(`Auto-merge aborted: Some checks did not pass: ${incomplete.map(r => r.name).join(', ')}`);
-            }
+            // Poll up to ~5 minutes for external checks to finish.
+            let externalChecks = [];
+            for (let i = 0; i < 10; i++) {
               const { data: checkRuns } = await github.rest.checks.listForRef({
-                owner,
-                repo,
-                ref: headSha,
+                owner, repo, ref: headSha,
               });
 
-              // Filter out this workflow's own check
-              const externalChecks = checkRuns.check_runs.filter(c => c.name !== 'auto-merge');
+              // Ignore this workflow's own check run.
+              externalChecks = checkRuns.check_runs.filter(c => c.name !== 'auto-merge');
 
               const pending = externalChecks.filter(c => c.status !== 'completed');
               if (externalChecks.length > 0 && pending.length === 0) {
@@ -60,6 +51,15 @@ jobs:
               }
 
               await new Promise(r => setTimeout(r, 30000));
+            }
+
+            // Fail fast if checks exist but never completed, so auto-merge can't
+            // proceed against an incomplete CI state. (Absence of checks is
+            // handled gracefully by the next step.)
+            const stillPending = externalChecks.filter(c => c.status !== 'completed');
+            if (stillPending.length > 0) {
+              const names = stillPending.map(c => c.name).join(', ');
+              throw new Error('Auto-merge aborted: CI checks did not complete in time: ' + names);
             }
 
       - name: Check CI status and reviews
@@ -109,6 +109,8 @@ jobs:
               return;
             }
 
+            // Block while any external check is still running (defense in depth;
+            // wait-checks already fails on timeout).
             const pendingChecks = externalChecks.filter(c => c.status !== 'completed');
             if (pendingChecks.length > 0) {
               const pendingNames = pendingChecks.map(c => c.name).join(', ');
