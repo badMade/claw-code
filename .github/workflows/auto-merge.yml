@@ -97,25 +97,26 @@ jobs:
             const externalChecks = checkRuns.check_runs.filter(
               c => c.name !== 'auto-merge'
             );
+            if (externalChecks.length === 0) {
+              const marker = '<!-- auto-merge-status -->';
+              const body = `⚠️ **Auto-merge skipped**: No CI checks detected. Please ensure CI is configured.\n\n[Workflow run](https://github.com/${owner}/${repo}/actions/runs/${context.runId})\n\n${marker}`;
 
-const marker = '<!-- auto-merge-status -->';
-const body = `⚠️ **Auto-merge skipped**: No CI checks detected. Please ensure CI is configured.\n\n[Workflow run](https://github.com/${owner}/${repo}/actions/runs/${context.runId})\n\n${marker}`;
+              const { data: comments } = await github.rest.issues.listComments({
+                owner, repo, issue_number: prNumber
+              });
 
-const { data: comments } = await github.rest.issues.listComments({
-  owner, repo, issue_number: prNumber
-});
+              const existingComment = comments.find(c => c.body.includes(marker));
 
-const existingComment = comments.find(c => c.body.includes(marker));
+              if (existingComment) {
+                await github.rest.issues.updateComment({
+                  owner, repo, comment_id: existingComment.id, body
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: prNumber, body
+                });
+              }
 
-if (existingComment) {
-  await github.rest.issues.updateComment({
-    owner, repo, comment_id: existingComment.id, body
-  });
-} else {
-  await github.rest.issues.createComment({
-    owner, repo, issue_number: prNumber, body
-  });
-}
               core.setOutput('should_merge', 'false');
               core.setOutput('reason', 'no_checks');
               return;
