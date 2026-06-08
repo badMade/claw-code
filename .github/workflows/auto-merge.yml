@@ -210,7 +210,7 @@ jobs:
               // and the catch block reports it, avoiding merging an unchecked commit.
               await github.rest.pulls.merge({
                 owner, repo, pull_number: prNumber,
-                sha: pr.head.sha,
+                sha: '${{ steps.wait-checks.outputs.head_sha }}',
                 merge_method: 'squash'
               });
 
