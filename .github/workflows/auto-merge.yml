@@ -54,13 +54,10 @@ jobs:
               await new Promise(r => setTimeout(r, 30000));
             }
 
-            // Fail fast if checks exist but never completed, so auto-merge can't
-            // proceed against an incomplete CI state. (Absence of checks is
-            // handled gracefully by the next step.)
             const stillPending = externalChecks.filter(c => c.status !== 'completed');
             if (stillPending.length > 0) {
               const names = stillPending.map(c => c.name).join(', ');
-              core.notice('Auto-merge deferred: CI checks still running after timeout: ' + names);
+              core.setFailed('Auto-merge aborted: CI checks still running after timeout: ' + names);
               return;
             }
 
