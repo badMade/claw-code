@@ -40,7 +40,7 @@ jobs:
             let externalChecks = [];
             for (let i = 0; i < 10; i++) {
               const { data: checkRuns } = await github.rest.checks.listForRef({
-                owner, repo, ref: headSha,
+                owner, repo, ref: headSha, per_page: 100,
               });
 
               // Ignore this workflow's own check run.
