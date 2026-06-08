@@ -224,4 +224,10 @@ jobs:
               await postStatus('✅ **Auto-merged** via squash merge. ' + reviewerCount + ' reviewer(s) (' + reviewerNames + ') provided feedback.');
             } catch (error) {
               await postStatus('❌ **Auto-merge failed**: ' + error.message);
+              // A 409 means the head moved after validation (expected race) and
+              // is non-fatal. Surface any other error as a failed run so real
+              // problems (permissions, branch protection, etc.) aren't hidden.
+              if (error.status !== 409) {
+                core.setFailed('Auto-merge failed: ' + error.message);
+              }
             }
