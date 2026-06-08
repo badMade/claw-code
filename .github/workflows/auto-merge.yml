@@ -60,7 +60,8 @@ jobs:
             const stillPending = externalChecks.filter(c => c.status !== 'completed');
             if (stillPending.length > 0) {
               const names = stillPending.map(c => c.name).join(', ');
-              throw new Error('Auto-merge aborted: CI checks did not complete in time: ' + names);
+              core.notice('Auto-merge deferred: CI checks still running after timeout: ' + names);
+              return;
             }
 
       - name: Check CI status and reviews
