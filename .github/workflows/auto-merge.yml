@@ -140,7 +140,7 @@ jobs:
               return;
             }
 
-            // Detect AI code reviews
+            // Detect reviews (review submissions or review comments)
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner, repo, pull_number: prNumber
             });
