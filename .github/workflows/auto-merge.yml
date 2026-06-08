@@ -104,12 +104,13 @@ jobs:
             }
 
             // Fetch all CI checks (paginate so we never miss a run in repos
-            // with many jobs). checks.listForRef returns { total_count,
-            // check_runs }, so extract the array explicitly on each page.
+            // with many jobs). octokit normalizes checks.listForRef pages to the
+            // check_runs array, but guard for both shapes so each element is a
+            // check-run object (never undefined) before we filter on it.
             const checkRuns = await github.paginate(
               github.rest.checks.listForRef,
               { owner, repo, ref: expectedHeadSha || currentPR.head.sha, per_page: 100 },
-              (response) => response.data.check_runs,
+              (response) => (Array.isArray(response.data) ? response.data : response.data.check_runs),
             );
             const externalChecks = checkRuns.filter(c => c.name !== 'auto-merge');
 
