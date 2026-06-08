@@ -91,7 +91,7 @@ jobs:
 
             // Check all CI checks pass
             const { data: checkRuns } = await github.rest.checks.listForRef({
-              owner, repo, ref: expectedHeadSha || currentPR.head.sha
+              owner, repo, ref: expectedHeadSha || currentPR.head.sha, per_page: 100
             });
 
             const externalChecks = checkRuns.check_runs.filter(
