@@ -104,10 +104,13 @@ jobs:
             }
 
             // Fetch all CI checks (paginate so we never miss a run in repos
-            // with many jobs).
-            const checkRuns = await github.paginate(github.rest.checks.listForRef, {
-              owner, repo, ref: expectedHeadSha || currentPR.head.sha, per_page: 100,
-            });
+            // with many jobs). checks.listForRef returns { total_count,
+            // check_runs }, so extract the array explicitly on each page.
+            const checkRuns = await github.paginate(
+              github.rest.checks.listForRef,
+              { owner, repo, ref: expectedHeadSha || currentPR.head.sha, per_page: 100 },
+              (response) => response.data.check_runs,
+            );
             const externalChecks = checkRuns.filter(c => c.name !== 'auto-merge');
 
             if (externalChecks.length === 0) {
