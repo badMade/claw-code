@@ -127,11 +127,16 @@ jobs:
             const pendingChecks = externalChecks.filter(c => c.status !== 'completed');
             if (pendingChecks.length > 0) {
               const pendingNames = pendingChecks.map(c => c.name).join(', ');
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: '⏳ **Auto-merge pending**: CI checks are still running: ' + pendingNames + '\n\n[Workflow run](https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId + ')'
-              });
-              core.setOutput('should_merge', 'false');
+const marker = '<!-- auto-merge-status -->';
+const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: prNumber });
+const existingComment = comments.find(c => c.body.includes(marker));
+const body = `${marker}\n\n⏳ **Auto-merge pending**: CI checks are still running: ${pendingNames}\n\n[Workflow run](https://github.com/${owner}/${repo}/actions/runs/${context.runId})`;
+if (existingComment) {
+  await github.rest.issues.updateComment({ ...context.repo, comment_id: existingComment.id, body });
+} else {
+  await github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
+}
+core.setOutput('should_merge', 'false');
               core.setOutput('reason', 'checks_pending');
               return;
             }
