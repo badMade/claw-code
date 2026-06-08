@@ -29,10 +29,11 @@ jobs:
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
       ) ||
       (
+      (
         github.event_name == 'pull_request_review' &&
-        contains(github.event.review.body, '@claude') &&
+        contains(github.event.review.body || '', '@claude') &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association)
-      ) ||
+      )
       (
         github.event_name == 'issues' &&
         (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
