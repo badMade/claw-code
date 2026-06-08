@@ -47,7 +47,7 @@ jobs:
               externalChecks = checkRuns.check_runs.filter(c => c.name !== 'auto-merge');
 
               const pending = externalChecks.filter(c => c.status !== 'completed');
-              if (externalChecks.length > 0 && pending.length === 0) {
+              if (externalChecks.length === 0 || pending.length === 0) {
                 break;
               }
 
