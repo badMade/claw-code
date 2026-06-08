@@ -32,33 +32,29 @@ jobs:
             const repo = context.repo.repo;
             const headSha = pr.head.sha;
 
-            // Expose the validated head SHA so later steps gate on the exact
-            // commit that was checked here (not a stale or moved head).
+            // Expose the validated head SHA so later steps gate on (and merge)
+            // the exact commit that was checked here, not a stale or moved head.
             core.setOutput('head_sha', headSha);
 
-            // Poll up to ~5 minutes for external checks to finish.
-            let externalChecks = [];
+            // Best-effort wait (up to ~5 min) for external checks to finish.
+            // We never fail the run here: the check-status step is the single
+            // gate and it defers (without failing) while checks are pending, so
+            // a timeout simply leaves merging to a later run. Breaking when
+            // nothing is pending also covers the "no checks configured" case so
+            // we don't burn the whole window unnecessarily.
             for (let i = 0; i < 10; i++) {
               const { data: checkRuns } = await github.rest.checks.listForRef({
                 owner, repo, ref: headSha, per_page: 100,
               });
 
               // Ignore this workflow's own check run.
-              externalChecks = checkRuns.check_runs.filter(c => c.name !== 'auto-merge');
-
+              const externalChecks = checkRuns.check_runs.filter(c => c.name !== 'auto-merge');
               const pending = externalChecks.filter(c => c.status !== 'completed');
-              if (externalChecks.length === 0 || pending.length === 0) {
+              if (pending.length === 0) {
                 break;
               }
 
               await new Promise(r => setTimeout(r, 30000));
-            }
-
-            const stillPending = externalChecks.filter(c => c.status !== 'completed');
-            if (stillPending.length > 0) {
-              const names = stillPending.map(c => c.name).join(', ');
-              core.setFailed('Auto-merge aborted: CI checks still running after timeout: ' + names);
-              return;
             }
 
       - name: Check CI status and reviews
@@ -71,10 +67,27 @@ jobs:
             const repo = context.repo.repo;
             const prNumber = pr.number;
             const expectedHeadSha = '${{ steps.wait-checks.outputs.head_sha }}';
+            const runUrl = 'https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId;
 
-            // Re-fetch PR to get current state
+            // Upsert a single "auto-merge status" comment (find-by-marker +
+            // update) so repeated runs don't spam the PR with near-duplicates.
+            const marker = '<!-- auto-merge-status -->';
+            async function postStatus(message) {
+              const body = message + '\n\n[Workflow run](' + runUrl + ')\n\n' + marker;
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: prNumber, per_page: 100,
+              });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+              }
+            }
+
+            // Re-fetch PR to get current state.
             const { data: currentPR } = await github.rest.pulls.get({
-              owner, repo, pull_number: prNumber
+              owner, repo, pull_number: prNumber,
             });
 
             if (currentPR.state !== 'open') {
@@ -83,60 +96,34 @@ jobs:
               return;
             }
 
+            // Bail if the head moved since wait-checks validated it.
             if (expectedHeadSha && currentPR.head.sha !== expectedHeadSha) {
               core.setOutput('should_merge', 'false');
               core.setOutput('reason', 'head_sha_changed');
               return;
             }
 
-            // Check all CI checks pass
-            const { data: checkRuns } = await github.rest.checks.listForRef({
-              owner, repo, ref: expectedHeadSha || currentPR.head.sha, per_page: 100
+            // Fetch all CI checks (paginate so we never miss a run in repos
+            // with many jobs).
+            const checkRuns = await github.paginate(github.rest.checks.listForRef, {
+              owner, repo, ref: expectedHeadSha || currentPR.head.sha, per_page: 100,
             });
+            const externalChecks = checkRuns.filter(c => c.name !== 'auto-merge');
 
-            const externalChecks = checkRuns.check_runs.filter(
-              c => c.name !== 'auto-merge'
-            );
             if (externalChecks.length === 0) {
-              const marker = '<!-- auto-merge-status -->';
-              const body = `⚠️ **Auto-merge skipped**: No CI checks detected. Please ensure CI is configured.\n\n[Workflow run](https://github.com/${owner}/${repo}/actions/runs/${context.runId})\n\n${marker}`;
-
-              const { data: comments } = await github.rest.issues.listComments({
-                owner, repo, issue_number: prNumber
-              });
-
-              const existingComment = comments.find(c => c.body.includes(marker));
-
-              if (existingComment) {
-                await github.rest.issues.updateComment({
-                  owner, repo, comment_id: existingComment.id, body
-                });
-              } else {
-                await github.rest.issues.createComment({
-                  owner, repo, issue_number: prNumber, body
-                });
-              }
-
+              await postStatus('⚠️ **Auto-merge skipped**: No CI checks detected. Please ensure CI is configured.');
               core.setOutput('should_merge', 'false');
               core.setOutput('reason', 'no_checks');
               return;
             }
 
-            // Block while any external check is still running (defense in depth;
-            // wait-checks already fails on timeout).
+            // Defer (do not fail the run) while any external check is still
+            // running; a later PR event re-runs this gate.
             const pendingChecks = externalChecks.filter(c => c.status !== 'completed');
             if (pendingChecks.length > 0) {
               const pendingNames = pendingChecks.map(c => c.name).join(', ');
-const marker = '<!-- auto-merge-status -->';
-const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: prNumber });
-const existingComment = comments.find(c => c.body.includes(marker));
-const body = `${marker}\n\n⏳ **Auto-merge pending**: CI checks are still running: ${pendingNames}\n\n[Workflow run](https://github.com/${owner}/${repo}/actions/runs/${context.runId})`;
-if (existingComment) {
-  await github.rest.issues.updateComment({ ...context.repo, comment_id: existingComment.id, body });
-} else {
-  await github.rest.issues.createComment({ ...context.repo, issue_number: prNumber, body });
-}
-core.setOutput('should_merge', 'false');
+              await postStatus('⏳ **Auto-merge pending**: CI checks are still running: ' + pendingNames);
+              core.setOutput('should_merge', 'false');
               core.setOutput('reason', 'checks_pending');
               return;
             }
@@ -144,63 +131,48 @@ core.setOutput('should_merge', 'false');
             const failedChecks = externalChecks.filter(
               c => !['success', 'skipped', 'neutral'].includes(c.conclusion)
             );
-
             if (failedChecks.length > 0) {
               const failedNames = failedChecks.map(c => c.name).join(', ');
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: '❌ **Auto-merge failed**: The following checks did not pass: ' + failedNames + '\n\n[Workflow run](https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId + ')'
-              });
+              await postStatus('❌ **Auto-merge blocked**: The following checks did not pass: ' + failedNames);
               core.setOutput('should_merge', 'false');
               core.setOutput('reason', 'checks_failed');
               return;
             }
 
-            // Detect reviews (review submissions or review comments)
-            const { data: reviews } = await github.rest.pulls.listReviews({
-              owner, repo, pull_number: prNumber
+            // Require at least one review or review comment (human or bot)
+            // before merging.
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner, repo, pull_number: prNumber, per_page: 100,
             });
-
-            const { data: reviewComments } = await github.rest.pulls.listReviewComments({
-              owner, repo, pull_number: prNumber
+            const reviewComments = await github.paginate(github.rest.pulls.listReviewComments, {
+              owner, repo, pull_number: prNumber, per_page: 100,
             });
-
             const hasReviews = reviews.length > 0 || reviewComments.length > 0;
 
-            // Check for 'reviewed' label
             const labels = currentPR.labels.map(l => l.name);
             const hasReviewedLabel = labels.includes('reviewed');
 
             if (!hasReviews) {
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: '⏳ **Auto-merge pending**: No reviews detected yet. Waiting for AI code review feedback.\n\n[Workflow run](https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId + ')'
-              });
+              await postStatus('⏳ **Auto-merge pending**: No reviews detected yet. Waiting for review feedback.');
               core.setOutput('should_merge', 'false');
               core.setOutput('reason', 'pending_reviews');
               return;
             }
 
+            const reviewerNames = [...new Set([
+              ...reviews.map(r => r.user.login),
+              ...reviewComments.map(r => r.user.login),
+            ])];
+
             if (!hasReviewedLabel) {
-              const reviewerNames = [...new Set([
-                ...reviews.map(r => r.user.login),
-                ...reviewComments.map(r => r.user.login)
-              ])];
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: '👀 **Reviews detected but awaiting confirmation**: ' + reviewerNames.length + ' reviewer(s) (' + reviewerNames.join(', ') + ') have provided feedback. Add the `reviewed` label to confirm review acceptance and trigger auto-merge.\n\n[Workflow run](https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId + ')'
-              });
+              await postStatus('👀 **Reviews detected but awaiting confirmation**: ' + reviewerNames.length + ' reviewer(s) (' + reviewerNames.join(', ') + ') have provided feedback. Add the `reviewed` label to confirm review acceptance and trigger auto-merge.');
               core.setOutput('should_merge', 'false');
               core.setOutput('reason', 'awaiting_label');
               return;
             }
 
-            // All conditions met
+            // All conditions met.
             core.setOutput('should_merge', 'true');
-            const reviewerNames = [...new Set([
-              ...reviews.map(r => r.user.login),
-              ...reviewComments.map(r => r.user.login)
-            ])];
             core.setOutput('reviewer_count', reviewerNames.length.toString());
             core.setOutput('reviewer_names', reviewerNames.join(', '));
 
@@ -219,24 +191,33 @@ core.setOutput('should_merge', 'false');
             const prNumber = pr.number;
             const reviewerCount = '${{ steps.check-status.outputs.reviewer_count }}';
             const reviewerNames = '${{ steps.check-status.outputs.reviewer_names }}';
+            const headSha = '${{ steps.wait-checks.outputs.head_sha }}' || pr.head.sha;
+            const runUrl = 'https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId;
+
+            const marker = '<!-- auto-merge-status -->';
+            async function postStatus(message) {
+              const body = message + '\n\n[Workflow run](' + runUrl + ')\n\n' + marker;
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: prNumber, per_page: 100,
+              });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+              }
+            }
 
             try {
-              // Pin the merge to the head SHA that was validated above. If new
-              // commits landed during the run, GitHub rejects the merge (409)
-              // and the catch block reports it, avoiding merging an unchecked commit.
+              // Pin the merge to the head SHA validated above. If new commits
+              // landed during the run, GitHub rejects the merge (409) and the
+              // catch block reports it, avoiding merging an unchecked commit.
               await github.rest.pulls.merge({
                 owner, repo, pull_number: prNumber,
-                sha: '${{ steps.wait-checks.outputs.head_sha }}',
-                merge_method: 'squash'
+                sha: headSha,
+                merge_method: 'squash',
               });
-
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: '✅ **Auto-merged** via squash merge. ' + reviewerCount + ' reviewer(s) (' + reviewerNames + ') provided feedback.\n\n[Workflow run](https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId + ')'
-              });
+              await postStatus('✅ **Auto-merged** via squash merge. ' + reviewerCount + ' reviewer(s) (' + reviewerNames + ') provided feedback.');
             } catch (error) {
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: prNumber,
-                body: '❌ **Auto-merge failed**: ' + error.message + '\n\n[Workflow run](https://github.com/' + owner + '/' + repo + '/actions/runs/' + context.runId + ')'
-              });
+              await postStatus('❌ **Auto-merge failed**: ' + error.message);
             }
