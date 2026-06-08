@@ -37,18 +37,11 @@ jobs:
             core.setOutput('head_sha', headSha);
 
             // Poll up to ~5 minutes for external checks to finish.
-            const { data: checks } = await github.rest.checks.listForRef({
-              owner,
-              repo,
-              ref: context.sha
-            });
-            if (checks.check_runs.some(check => check.status !== 'completed')) {
-              throw new Error('Some checks are still in progress.');
-            }
-            const failed = checks.check_runs.filter(check => check.conclusion === 'failure');
-            if (failed.length > 0) {
-              throw new Error(`Checks failed: ${failed.map(f => f.name).join(', ')}`);
-            }
+            let externalChecks = [];
+            for (let i = 0; i < 10; i++) {
+              const { data: checkRuns } = await github.rest.checks.listForRef({
+                owner, repo, ref: headSha,
+              });
 
               // Ignore this workflow's own check run.
               externalChecks = checkRuns.check_runs.filter(c => c.name !== 'auto-merge');
