@@ -122,7 +122,10 @@ jobs:
             }
 
             // Defer (do not fail the run) while any external check is still
-            // running; a later PR event re-runs this gate.
+            // running. Check completion doesn't emit a pull_request event, so
+            // this run won't auto-resume on its own; by design we rely on the
+            // next PR event to re-evaluate — typically the `reviewed` label
+            // being added after CI is green, which fires a fresh run that merges.
             const pendingChecks = externalChecks.filter(c => c.status !== 'completed');
             if (pendingChecks.length > 0) {
               const pendingNames = pendingChecks.map(c => c.name).join(', ');
