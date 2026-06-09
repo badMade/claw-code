@@ -129,7 +129,7 @@ jobs:
             const pendingChecks = externalChecks.filter(c => c.status !== 'completed');
             if (pendingChecks.length > 0) {
               const pendingNames = pendingChecks.map(c => c.name).join(', ');
-              await postStatus('⏳ **Auto-merge pending**: CI checks are still running: ' + pendingNames);
+              await postStatus('⏳ **Auto-merge pending**: CI checks are still running: ' + pendingNames + '. This re-evaluates on the next PR event; if it stays pending after CI finishes, re-trigger by toggling the `reviewed` label (remove it, then re-add it).');
               core.setOutput('should_merge', 'false');
               core.setOutput('reason', 'checks_pending');
               return;
