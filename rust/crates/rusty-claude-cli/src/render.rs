@@ -1,7 +1,7 @@
 use std::fmt::Write as FmtWrite;
 use std::io::{self, Write};
 
-use crossterm::cursor::{MoveToColumn, RestorePosition, SavePosition};
+use crossterm::cursor::{Hide, MoveToColumn, RestorePosition, SavePosition, Show};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor, Stylize};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
@@ -44,9 +44,10 @@ impl Default for ColorTheme {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default)]
 pub struct Spinner {
     frame_index: usize,
+    cursor_hidden: bool,
 }
 
 impl Spinner {
@@ -63,6 +64,10 @@ impl Spinner {
         theme: &ColorTheme,
         out: &mut impl Write,
     ) -> io::Result<()> {
+        if !self.cursor_hidden {
+            queue!(out, Hide)?;
+            self.cursor_hidden = true;
+        }
         let frame = Self::FRAMES[self.frame_index % Self::FRAMES.len()];
         self.frame_index += 1;
         queue!(
@@ -85,6 +90,10 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
+        if self.cursor_hidden {
+            execute!(out, Show)?;
+            self.cursor_hidden = false;
+        }
         execute!(
             out,
             MoveToColumn(0),
@@ -103,6 +112,10 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
+        if self.cursor_hidden {
+            execute!(out, Show)?;
+            self.cursor_hidden = false;
+        }
         execute!(
             out,
             MoveToColumn(0),
@@ -1062,5 +1075,49 @@ mod tests {
 
         let output = String::from_utf8_lossy(&out);
         assert!(output.contains("Working"));
+    }
+
+    #[test]
+    fn spinner_hides_cursor_once_and_restores_on_finish() {
+        let terminal_renderer = TerminalRenderer::new();
+        let mut spinner = Spinner::new();
+        let mut out = Vec::new();
+
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("first tick succeeds");
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("second tick succeeds");
+        spinner
+            .finish("Done", terminal_renderer.color_theme(), &mut out)
+            .expect("finish succeeds");
+        spinner
+            .finish("Done", terminal_renderer.color_theme(), &mut out)
+            .expect("second finish succeeds");
+
+        let output = String::from_utf8_lossy(&out);
+        assert_eq!(output.matches("\u{1b}[?25l").count(), 1);
+        assert_eq!(output.matches("\u{1b}[?25h").count(), 1);
+    }
+
+    #[test]
+    fn spinner_restores_cursor_on_fail() {
+        let terminal_renderer = TerminalRenderer::new();
+        let mut spinner = Spinner::new();
+        let mut out = Vec::new();
+
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("tick succeeds");
+        spinner
+            .fail("Failed", terminal_renderer.color_theme(), &mut out)
+            .expect("fail succeeds");
+        spinner
+            .fail("Failed", terminal_renderer.color_theme(), &mut out)
+            .expect("second fail succeeds");
+
+        let output = String::from_utf8_lossy(&out);
+        assert_eq!(output.matches("\u{1b}[?25h").count(), 1);
     }
 }
