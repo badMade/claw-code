@@ -51,6 +51,18 @@ class TestTools(unittest.TestCase):
         self.assertEqual(get_tool(first_tool.name.upper()), first_tool)
         # Unknown tool
         self.assertIsNone(get_tool("NonExistentToolNamexyz123"))
+        # Empty string
+        self.assertIsNone(get_tool(""))
+        # Whitespace
+        self.assertIsNone(get_tool("   "))
+
+        # Test finding first match among duplicate names if they exist
+        # Check tools_snapshot.json to see we have "constants" multiple times
+        constants_tools = [t for t in PORTED_TOOLS if t.name.lower() == "constants"]
+        if len(constants_tools) > 1:
+            # Should return the first one in the list
+            self.assertEqual(get_tool("constants"), constants_tools[0])
+            self.assertEqual(get_tool("CONSTANTS"), constants_tools[0])
 
     def test_filter_tools_by_permission_context(self) -> None:
         tools = PORTED_TOOLS[:5]
