@@ -4,3 +4,7 @@
 ## 2026-04-29 - Python Dictionary Lookup Optimization for Lists
 **Learning:** O(N) linear scans on static lists inside frequently called functions (e.g., `get_tool`) are a performance hazard. A `lru_cache(maxsize=1)` dictionary lookup wrapped in `MappingProxyType` to prevent modification is a simple and extremely effective optimization technique that reduces complexity from O(N) to O(1) and eliminates repeated loop and string allocations. We must be mindful when mapping non-unique elements. Preserving first-match behavior requires `if key not in lookup:` during the dictionary's initial lazy-loading map phase.
 **Action:** Always favor lazily initialized cached dictionary lookups over list iteration when retrieving elements from static datasets by string keys.
+
+## 2025-02-12 - O(1) Lookups in Immutable Registries
+**Learning:** In codebases where configuration or registry patterns rely on immutable lists or tuples, linear O(N) searches (especially those involving repeated string manipulation like `.lower()`) can become silent bottlenecks when called frequently.
+**Action:** Replace O(N) array scans with O(1) dictionary lookups using `@functools.cached_property`. Crucially, when there's a requirement to return the *first* match among duplicate entries, iterate over the list in reverse order (`reversed(items)`) while building the dictionary, ensuring subsequent matches are overwritten by earlier ones to perfectly preserve functionality.
