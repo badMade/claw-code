@@ -1,7 +1,7 @@
 use std::fmt::Write as FmtWrite;
 use std::io::{self, Write};
 
-use crossterm::cursor::{MoveToColumn, RestorePosition, SavePosition};
+use crossterm::cursor::{Hide, MoveToColumn, RestorePosition, SavePosition, Show};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor, Stylize};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
@@ -47,6 +47,16 @@ impl Default for ColorTheme {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Spinner {
     frame_index: usize,
+    cursor_hidden: bool,
+}
+
+impl Drop for Spinner {
+    fn drop(&mut self) {
+        if self.cursor_hidden {
+            let mut out = io::stdout();
+            let _ = execute!(out, Show);
+        }
+    }
 }
 
 impl Spinner {
@@ -63,6 +73,10 @@ impl Spinner {
         theme: &ColorTheme,
         out: &mut impl Write,
     ) -> io::Result<()> {
+        if !self.cursor_hidden {
+            queue!(out, Hide)?;
+            self.cursor_hidden = true;
+        }
         let frame = Self::FRAMES[self.frame_index % Self::FRAMES.len()];
         self.frame_index += 1;
         queue!(
@@ -85,14 +99,19 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
-        execute!(
+        let show_result = execute!(
             out,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
             SetForegroundColor(theme.spinner_done),
             Print(format!("✔ {label}\n")),
-            ResetColor
-        )?;
+            ResetColor,
+            Show
+        );
+        if show_result.is_ok() {
+            self.cursor_hidden = false;
+        }
+        show_result?;
         out.flush()
     }
 
@@ -103,14 +122,19 @@ impl Spinner {
         out: &mut impl Write,
     ) -> io::Result<()> {
         self.frame_index = 0;
-        execute!(
+        let show_result = execute!(
             out,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
             SetForegroundColor(theme.spinner_failed),
             Print(format!("✘ {label}\n")),
-            ResetColor
-        )?;
+            ResetColor,
+            Show
+        );
+        if show_result.is_ok() {
+            self.cursor_hidden = false;
+        }
+        show_result?;
         out.flush()
     }
 }
@@ -909,6 +933,7 @@ fn strip_ansi(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{strip_ansi, MarkdownStreamState, Spinner, TerminalRenderer};
+    use std::io::{self, Write};
 
     #[test]
     fn renders_markdown_with_styling_and_lists() {
@@ -1062,5 +1087,49 @@ mod tests {
 
         let output = String::from_utf8_lossy(&out);
         assert!(output.contains("Working"));
+    }
+
+    struct AlwaysFailWriter;
+
+    impl Write for AlwaysFailWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            Err(io::Error::other("write failed"))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn spinner_finish_error_keeps_cursor_hidden_for_drop_recovery() {
+        let terminal_renderer = TerminalRenderer::new();
+        let mut spinner = Spinner::new();
+        let mut out = Vec::new();
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("tick succeeds");
+
+        let mut failing_out = AlwaysFailWriter;
+        let result = spinner.finish("Done", terminal_renderer.color_theme(), &mut failing_out);
+
+        assert!(result.is_err());
+        assert!(spinner.cursor_hidden);
+    }
+
+    #[test]
+    fn spinner_fail_error_keeps_cursor_hidden_for_drop_recovery() {
+        let terminal_renderer = TerminalRenderer::new();
+        let mut spinner = Spinner::new();
+        let mut out = Vec::new();
+        spinner
+            .tick("Working", terminal_renderer.color_theme(), &mut out)
+            .expect("tick succeeds");
+
+        let mut failing_out = AlwaysFailWriter;
+        let result = spinner.fail("Done", terminal_renderer.color_theme(), &mut failing_out);
+
+        assert!(result.is_err());
+        assert!(spinner.cursor_hidden);
     }
 }

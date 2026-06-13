@@ -2,6 +2,7 @@ __pycache__/
 archive/
 .omx/
 .clawd-agents/
+.port_sessions/
 
 # Rust build artifacts (also in rust/.gitignore)
 target/
