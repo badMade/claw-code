@@ -1,0 +1,3 @@
+schedule: '0 2 * * *'
+rationale: 'Standard PR velocity (<5 recent merges), running once daily.'
+marker: '# AUTO-UPDATED'
