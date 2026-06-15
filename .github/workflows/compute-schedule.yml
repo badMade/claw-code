@@ -1,0 +1,80 @@
+name: Recompute Self-Heal Schedule
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Run weekly on Sunday
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  compute-schedule:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prevent Duplicate PRs
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          count=$(gh pr list --label self-heal-schedule --state open --json number | jq length)
+          if [ "$count" -gt 0 ]; then
+            echo "Schedule update PR already exists. Skipping."
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - name: Setup Python
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          pip install -r requirements-dev.txt
+
+      - name: Compute New Schedule
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/compute_schedule.py
+
+      - name: Check Diff
+        if: steps.check.outputs.skip != 'true'
+        id: diff
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "has_diff=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_diff=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.check.outputs.skip != 'true' && steps.diff.outputs.has_diff == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="schedule-update-$(date +%s)"
+          git checkout -b "$BRANCH"
+          git add .github/self-heal-schedule.yml .github/workflows/self-heal.yml
+          git commit -m "Update self-heal schedule based on telemetry"
+          git push -u origin "$BRANCH"
+
+          gh pr create \
+            --title "[Self-Heal Schedule] Update cadence" \
+            --body "Auto-computed schedule update based on recent repository activity." \
+            --label "self-heal-schedule,automation"
