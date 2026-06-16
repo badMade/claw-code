@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
@@ -8,6 +7,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from .models import PortingBacklog, PortingModule
+from .snapshot_loader import load_porting_modules
 from .permissions import ToolPermissionContext
 
 SNAPSHOT_PATH = (
@@ -26,16 +26,7 @@ class ToolExecution:
 
 @lru_cache(maxsize=1)
 def load_tool_snapshot() -> tuple[PortingModule, ...]:
-    raw_entries = json.loads(SNAPSHOT_PATH.read_text())
-    return tuple(
-        PortingModule(
-            name=entry["name"],
-            responsibility=entry["responsibility"],
-            source_hint=entry["source_hint"],
-            status="mirrored",
-        )
-        for entry in raw_entries
-    )
+    return load_porting_modules(SNAPSHOT_PATH)
 
 
 PORTED_TOOLS = load_tool_snapshot()
