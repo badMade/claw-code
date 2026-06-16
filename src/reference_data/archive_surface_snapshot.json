@@ -15,7 +15,6 @@
     "main.tsx",
     "projectOnboardingState.ts",
     "query.ts",
-    "replLauncher.tsx",
     "setup.ts",
     "tasks.ts",
     "tools.ts"
