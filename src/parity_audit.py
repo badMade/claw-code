@@ -21,7 +21,6 @@ ARCHIVE_ROOT_FILES = {
     'dialogLaunchers.tsx': 'dialogLaunchers.py',
     'history.ts': 'history.py',
     'ink.ts': 'ink.py',
-    'interactiveHelpers.tsx': 'interactiveHelpers.py',
     'main.tsx': 'main.py',
     'projectOnboardingState.ts': 'projectOnboardingState.py',
     'query.ts': 'query.py',
