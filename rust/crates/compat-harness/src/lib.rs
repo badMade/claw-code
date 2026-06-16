@@ -354,4 +354,38 @@ mod tests {
         assert!(names.contains(&"AgentTool"));
         assert!(names.contains(&"BashTool"));
     }
+
+    #[test]
+    fn extract_manifest_returns_not_found_for_invalid_paths() {
+        let temp = tempfile::tempdir().expect("should create temp dir");
+        let paths = UpstreamPaths::from_repo_root(temp.path());
+        let result = extract_manifest(&paths);
+        let err = result.expect_err("should fail when files do not exist");
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn extract_manifest_returns_not_found_when_tools_missing() {
+        let temp = tempfile::tempdir().expect("should create temp dir");
+        let paths = UpstreamPaths::from_repo_root(temp.path());
+        fs::create_dir_all(paths.commands_path().parent().unwrap()).expect("should create src dir");
+        fs::write(paths.commands_path(), "").expect("should write commands.ts");
+        let result = extract_manifest(&paths);
+        let err = result.expect_err("should fail when tools.ts is missing");
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn extract_manifest_returns_not_found_when_cli_missing() {
+        let temp = tempfile::tempdir().expect("should create temp dir");
+        let paths = UpstreamPaths::from_repo_root(temp.path());
+        fs::create_dir_all(paths.commands_path().parent().unwrap()).expect("should create src dir");
+        fs::write(paths.commands_path(), "").expect("should write commands.ts");
+        fs::write(paths.tools_path(), "").expect("should write tools.ts");
+        fs::create_dir_all(paths.cli_path().parent().unwrap())
+            .expect("should create entrypoints dir");
+        let result = extract_manifest(&paths);
+        let err = result.expect_err("should fail when cli.tsx is missing");
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    }
 }
