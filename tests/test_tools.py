@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 from src.tools import (
     load_tool_snapshot,
     build_tool_backlog,
@@ -53,45 +54,57 @@ class TestTools(unittest.TestCase):
         self.assertIsNone(get_tool("NonExistentToolNamexyz123"))
 
     def test_filter_tools_by_permission_context(self) -> None:
-        tools = PORTED_TOOLS[:5]
-        # No context
+        tools = (
+            PortingModule(name='BashTool', responsibility='shell', source_hint='local', status='mirrored'),
+            PortingModule(name='FileReadTool', responsibility='files', source_hint='local', status='mirrored'),
+            PortingModule(name='AdminTool', responsibility='admin', source_hint='local', status='mirrored'),
+        )
+        # No context -> return all
         self.assertEqual(filter_tools_by_permission_context(tools, None), tools)
 
-        # With context
-        deny_name = tools[0].name
-        context = ToolPermissionContext.from_iterables(deny_names=[deny_name])
+        # With context blocking one tool
+        context = ToolPermissionContext.from_iterables(deny_names=['AdminTool'])
         filtered = filter_tools_by_permission_context(tools, context)
-        self.assertEqual(len(filtered), len(tools) - 1)
-        self.assertNotIn(tools[0], filtered)
+        self.assertEqual(len(filtered), 2)
+        self.assertNotIn(tools[2], filtered)
 
+        # Context blocking multiple/all tools
+        context_all = ToolPermissionContext.from_iterables(deny_names=['BashTool', 'FileReadTool', 'AdminTool'])
+        self.assertEqual(filter_tools_by_permission_context(tools, context_all), ())
+
+    @mock.patch('src.tools.PORTED_TOOLS', new=(
+            PortingModule(name='BashTool', responsibility='shell', source_hint='local', status='mirrored'),
+            PortingModule(name='FileReadTool', responsibility='files', source_hint='local', status='mirrored'),
+            PortingModule(name='SomeOtherTool', responsibility='misc', source_hint='local', status='mirrored'),
+            PortingModule(name='mcp_server_tool', responsibility='mcp', source_hint='mcp server', status='mirrored'),
+            PortingModule(name='NormalTool', responsibility='normal', source_hint='mcp hint', status='mirrored'),
+        ))
     def test_get_tools(self) -> None:
-        # Default
-        all_tools = get_tools()
-        self.assertEqual(len(all_tools), len(PORTED_TOOLS))
 
-        # simple_mode
-        simple_mode_names = {'BashTool', 'FileReadTool', 'FileEditTool'}
-        expected_simple_names = {t.name for t in PORTED_TOOLS if t.name in simple_mode_names}
+        # Default: return all
+        self.assertEqual(len(get_tools()), 5)
+
+        # simple_mode=True: only 'BashTool', 'FileReadTool', 'FileEditTool'
         simple_tools = get_tools(simple_mode=True)
-        simple_tool_names = {tool.name for tool in simple_tools}
-        self.assertEqual(simple_tool_names, expected_simple_names)
+        self.assertEqual(len(simple_tools), 2)
+        self.assertEqual({t.name for t in simple_tools}, {'BashTool', 'FileReadTool'})
 
-        # include_mcp=False
-        # First, find if there are any MCP tools to test the filter
-        mcp_tools = [t for t in PORTED_TOOLS if 'mcp' in t.name.lower() or 'mcp' in t.source_hint.lower()]
-        if mcp_tools:
-            no_mcp_tools = get_tools(include_mcp=False)
-            self.assertTrue(len(no_mcp_tools) < len(PORTED_TOOLS))
-            for tool in no_mcp_tools:
-                self.assertNotIn('mcp', tool.name.lower())
-                self.assertNotIn('mcp', tool.source_hint.lower())
+        # include_mcp=False: drop 'mcp_server_tool' and 'NormalTool'
+        no_mcp_tools = get_tools(include_mcp=False)
+        self.assertEqual(len(no_mcp_tools), 3)
+        self.assertEqual({t.name for t in no_mcp_tools}, {'BashTool', 'FileReadTool', 'SomeOtherTool'})
 
-        # With permission context
-        if len(PORTED_TOOLS) > 0:
-            deny_name = PORTED_TOOLS[0].name
-            context = ToolPermissionContext.from_iterables(deny_names=[deny_name])
-            filtered = get_tools(permission_context=context)
-            self.assertNotIn(PORTED_TOOLS[0], filtered)
+        # permission_context: block 'FileReadTool'
+        context = ToolPermissionContext.from_iterables(deny_names=['FileReadTool'])
+        filtered_tools = get_tools(permission_context=context)
+        self.assertEqual(len(filtered_tools), 4)
+        self.assertNotIn('FileReadTool', {t.name for t in filtered_tools})
+
+        # All combined: simple_mode=True, include_mcp=False, block 'BashTool'
+        context2 = ToolPermissionContext.from_iterables(deny_names=['BashTool'])
+        combined_tools = get_tools(simple_mode=True, include_mcp=False, permission_context=context2)
+        self.assertEqual(len(combined_tools), 1)
+        self.assertEqual(combined_tools[0].name, 'FileReadTool')
 
     def test_find_tools(self) -> None:
         if not PORTED_TOOLS:
