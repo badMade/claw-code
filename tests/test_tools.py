@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from src.snapshot_loader import load_porting_modules
+from src.tools import SNAPSHOT_PATH
 from src.tools import (
-    load_tool_snapshot,
     build_tool_backlog,
     tool_names,
     get_tool,
@@ -18,8 +19,8 @@ from src.permissions import ToolPermissionContext
 
 
 class TestTools(unittest.TestCase):
-    def test_load_tool_snapshot(self) -> None:
-        tools = load_tool_snapshot()
+    def test_load_porting_modules(self) -> None:
+        tools = load_porting_modules(SNAPSHOT_PATH)
         self.assertIsInstance(tools, tuple)
         self.assertTrue(len(tools) > 0)
         for tool in tools:
