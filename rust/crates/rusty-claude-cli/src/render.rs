@@ -1,7 +1,7 @@
 use std::fmt::Write as FmtWrite;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 
-use crossterm::cursor::{MoveToColumn, RestorePosition, SavePosition};
+use crossterm::cursor::{Hide, MoveToColumn, RestorePosition, SavePosition, Show};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor, Stylize};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{execute, queue};
@@ -47,6 +47,8 @@ impl Default for ColorTheme {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Spinner {
     frame_index: usize,
+    cursor_hidden: bool,
+    restore_stdout_cursor_on_drop: bool,
 }
 
 impl Spinner {
@@ -67,6 +69,7 @@ impl Spinner {
         self.frame_index += 1;
         queue!(
             out,
+            Hide,
             SavePosition,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
@@ -75,7 +78,10 @@ impl Spinner {
             ResetColor,
             RestorePosition
         )?;
-        out.flush()
+        out.flush()?;
+        self.cursor_hidden = true;
+        self.restore_stdout_cursor_on_drop = io::stdout().is_terminal();
+        Ok(())
     }
 
     pub fn finish(
@@ -84,16 +90,20 @@ impl Spinner {
         theme: &ColorTheme,
         out: &mut impl Write,
     ) -> io::Result<()> {
-        self.frame_index = 0;
         execute!(
             out,
+            Show,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
             SetForegroundColor(theme.spinner_done),
             Print(format!("✔ {label}\n")),
             ResetColor
         )?;
-        out.flush()
+        out.flush()?;
+        self.frame_index = 0;
+        self.cursor_hidden = false;
+        self.restore_stdout_cursor_on_drop = false;
+        Ok(())
     }
 
     pub fn fail(
@@ -102,16 +112,28 @@ impl Spinner {
         theme: &ColorTheme,
         out: &mut impl Write,
     ) -> io::Result<()> {
-        self.frame_index = 0;
         execute!(
             out,
+            Show,
             MoveToColumn(0),
             Clear(ClearType::CurrentLine),
             SetForegroundColor(theme.spinner_failed),
             Print(format!("✘ {label}\n")),
             ResetColor
         )?;
-        out.flush()
+        out.flush()?;
+        self.frame_index = 0;
+        self.cursor_hidden = false;
+        self.restore_stdout_cursor_on_drop = false;
+        Ok(())
+    }
+}
+
+impl Drop for Spinner {
+    fn drop(&mut self) {
+        if self.cursor_hidden && self.restore_stdout_cursor_on_drop {
+            let _ = execute!(io::stdout(), Show);
+        }
     }
 }
 
@@ -1059,8 +1081,13 @@ mod tests {
         spinner
             .tick("Working", terminal_renderer.color_theme(), &mut out)
             .expect("tick succeeds");
+        spinner
+            .finish("Done", terminal_renderer.color_theme(), &mut out)
+            .expect("finish succeeds");
 
         let output = String::from_utf8_lossy(&out);
         assert!(output.contains("Working"));
+        assert!(output.contains("\u{1b}[?25l"));
+        assert!(output.contains("\u{1b}[?25h"));
     }
 }
