@@ -3,7 +3,6 @@ from __future__ import annotations
 import functools
 from dataclasses import dataclass, field
 
-
 @dataclass(frozen=True)
 class Subsystem:
     name: str
@@ -24,7 +23,8 @@ class PortingModule:
     # Impact: Reduces _score runtime by ~70% (from ~4.5ms to ~1.3ms per 1000 items in benchmarks).
     @functools.cached_property
     def search_text(self) -> str:
-        return f"{self.name} {self.source_hint} {self.responsibility}".lower()
+        """Cached search text to avoid redundant string allocations and lowering during routing."""
+        return f"{self.name.lower()}\0{self.source_hint.lower()}\0{self.responsibility.lower()}"
 
 
 @dataclass(frozen=True)
