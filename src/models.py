@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import functools
+import json
+from pathlib import Path
 from dataclasses import dataclass, field
 
 
@@ -55,3 +57,16 @@ class PortingBacklog:
             f'- {module.name} [{module.status}] — {module.responsibility} (from {module.source_hint})'
             for module in self.modules
         ]
+
+
+def _load_module_snapshot(path: Path) -> tuple[PortingModule, ...]:
+    raw_entries = json.loads(path.read_text())
+    return tuple(
+        PortingModule(
+            name=entry["name"],
+            responsibility=entry["responsibility"],
+            source_hint=entry["source_hint"],
+            status="mirrored",
+        )
+        for entry in raw_entries
+    )
