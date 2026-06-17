@@ -5151,7 +5151,9 @@ fn detect_powershell_shell() -> std::io::Result<&'static str> {
 fn command_exists(command: &str) -> bool {
     std::process::Command::new("sh")
         .arg("-c")
-        .arg(format!("command -v {command} >/dev/null 2>&1"))
+        .arg("command -v \"$1\" >/dev/null 2>&1")
+        .arg("--")
+        .arg(command)
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
@@ -8582,5 +8584,32 @@ printf 'pwsh:%s' "$1"
             )
             .into_bytes()
         }
+    }
+}
+
+#[cfg(test)]
+mod command_exists_tests {
+    use super::*;
+
+    #[test]
+    fn test_command_exists_valid() {
+        // 'ls' should exist on any standard unix system
+        assert!(command_exists("ls"));
+    }
+
+    #[test]
+    fn test_command_exists_invalid() {
+        assert!(!command_exists("this_command_does_not_exist_12345"));
+    }
+
+    #[test]
+    fn test_command_exists_injection() {
+        // If injection works, shell metacharacters or substitutions may be evaluated.
+        // If injection is prevented, each payload is treated as a literal command name and fails.
+        assert!(!command_exists("ls; echo pwned"));
+        assert!(!command_exists("$(echo pwned)"));
+        assert!(!command_exists("ls && echo pwned"));
+        assert!(!command_exists("ls || echo pwned"));
+        assert!(!command_exists("`echo ls`"));
     }
 }
