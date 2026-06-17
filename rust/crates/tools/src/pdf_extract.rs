@@ -483,6 +483,20 @@ mod tests {
     }
 
     #[test]
+    fn extract_text_returns_error_for_nonexistent_file() {
+        // given
+        let pdf_path = std::path::Path::new("/tmp/this-file-definitely-does-not-exist-12345.pdf");
+
+        // when
+        let result = extract_text(pdf_path);
+
+        // then
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err();
+        assert!(err_msg.contains("failed to read PDF:"));
+    }
+
+    #[test]
     fn extracts_text_from_file_on_disk() {
         // given
         let pdf_bytes = build_simple_pdf("Disk Test");
