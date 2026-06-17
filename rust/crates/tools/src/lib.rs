@@ -5151,7 +5151,9 @@ fn detect_powershell_shell() -> std::io::Result<&'static str> {
 fn command_exists(command: &str) -> bool {
     std::process::Command::new("sh")
         .arg("-c")
-        .arg(format!("command -v {command} >/dev/null 2>&1"))
+        .arg("command -v \"$1\" >/dev/null 2>&1")
+        .arg("--")
+        .arg(command)
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
@@ -8582,5 +8584,14 @@ printf 'pwsh:%s' "$1"
             )
             .into_bytes()
         }
+    }
+
+    #[test]
+    fn test_command_exists() {
+        assert!(super::command_exists("ls") || super::command_exists("dir"));
+        assert!(!super::command_exists("ls; echo injected"));
+        assert!(!super::command_exists(
+            "this_command_should_not_exist_12345"
+        ));
     }
 }
