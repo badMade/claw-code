@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 from src.tools import (
     load_tool_snapshot,
     build_tool_backlog,
@@ -11,7 +12,7 @@ from src.tools import (
     find_tools,
     execute_tool,
     render_tool_index,
-    PORTED_TOOLS
+    PORTED_TOOLS,
 )
 from src.models import PortingBacklog, PortingModule
 from src.permissions import ToolPermissionContext
@@ -24,12 +25,12 @@ class TestTools(unittest.TestCase):
         self.assertTrue(len(tools) > 0)
         for tool in tools:
             self.assertIsInstance(tool, PortingModule)
-            self.assertEqual(tool.status, 'mirrored')
+            self.assertEqual(tool.status, "mirrored")
 
     def test_build_tool_backlog(self) -> None:
         backlog = build_tool_backlog()
         self.assertIsInstance(backlog, PortingBacklog)
-        self.assertEqual(backlog.title, 'Tool surface')
+        self.assertEqual(backlog.title, "Tool surface")
         self.assertEqual(len(backlog.modules), len(PORTED_TOOLS))
         self.assertEqual(backlog.modules, list(PORTED_TOOLS))
 
@@ -39,16 +40,62 @@ class TestTools(unittest.TestCase):
         self.assertEqual(len(names), len(PORTED_TOOLS))
         self.assertEqual(names, [m.name for m in PORTED_TOOLS])
 
+    @patch(
+        "src.tools.PORTED_TOOLS",
+        new=tuple(
+            [
+                PortingModule(
+                    name="BashTool",
+                    responsibility="Run bash commands",
+                    source_hint="bash.py",
+                    status="mirrored",
+                ),
+                PortingModule(
+                    name="FileReadTool",
+                    responsibility="Read files",
+                    source_hint="file_read.py",
+                    status="mirrored",
+                ),
+                PortingModule(
+                    name="BashTool",
+                    responsibility="Duplicate tool",
+                    source_hint="bash2.py",
+                    status="mirrored",
+                ),
+                PortingModule(
+                    name="lowercase_tool",
+                    responsibility="Lower case",
+                    source_hint="lower.py",
+                    status="mirrored",
+                ),
+            ]
+        ),
+    )
     def test_get_tool(self) -> None:
-        if not PORTED_TOOLS:
-            self.skipTest("No tools available in snapshot")
+        from src.tools import PORTED_TOOLS
 
         first_tool = PORTED_TOOLS[0]
+        second_tool = PORTED_TOOLS[1]
+        dup_tool = PORTED_TOOLS[2]
+        lower_tool = PORTED_TOOLS[3]
+
         # Exact match
-        self.assertEqual(get_tool(first_tool.name), first_tool)
-        # Case-insensitive match
-        self.assertEqual(get_tool(first_tool.name.lower()), first_tool)
-        self.assertEqual(get_tool(first_tool.name.upper()), first_tool)
+        self.assertEqual(get_tool("BashTool"), first_tool)
+        # Case-insensitive match for the first tool
+        self.assertEqual(get_tool("bashtool"), first_tool)
+        self.assertEqual(get_tool("BASHTOOL"), first_tool)
+
+        # Exact match for second tool
+        self.assertEqual(get_tool("FileReadTool"), second_tool)
+
+        # Test duplicate resolution (should return first match)
+        self.assertEqual(get_tool("bashtool"), first_tool)
+        self.assertNotEqual(get_tool("bashtool"), dup_tool)
+
+        # Match for lower_tool
+        self.assertEqual(get_tool("lowercase_tool"), lower_tool)
+        self.assertEqual(get_tool("LOWERCASE_TOOL"), lower_tool)
+
         # Unknown tool
         self.assertIsNone(get_tool("NonExistentToolNamexyz123"))
 
@@ -64,58 +111,130 @@ class TestTools(unittest.TestCase):
         self.assertEqual(len(filtered), len(tools) - 1)
         self.assertNotIn(tools[0], filtered)
 
+    @patch(
+        "src.tools.PORTED_TOOLS",
+        new=tuple(
+            [
+                PortingModule(
+                    name="BashTool",
+                    responsibility="Run bash commands",
+                    source_hint="bash.py",
+                    status="mirrored",
+                ),
+                PortingModule(
+                    name="mcp_tool",
+                    responsibility="MCP tool",
+                    source_hint="mcp.py",
+                    status="mirrored",
+                ),
+                PortingModule(
+                    name="other_mcp",
+                    responsibility="Another tool",
+                    source_hint="mcp_hint.py",
+                    status="mirrored",
+                ),
+                PortingModule(
+                    name="OtherTool",
+                    responsibility="Other tool",
+                    source_hint="other.py",
+                    status="mirrored",
+                ),
+            ]
+        ),
+    )
     def test_get_tools(self) -> None:
+        from src.tools import PORTED_TOOLS
+
         # Default
         all_tools = get_tools()
         self.assertEqual(len(all_tools), len(PORTED_TOOLS))
 
         # simple_mode
-        simple_mode_names = {'BashTool', 'FileReadTool', 'FileEditTool'}
-        expected_simple_names = {t.name for t in PORTED_TOOLS if t.name in simple_mode_names}
         simple_tools = get_tools(simple_mode=True)
         simple_tool_names = {tool.name for tool in simple_tools}
-        self.assertEqual(simple_tool_names, expected_simple_names)
+        self.assertEqual(simple_tool_names, {"BashTool"})
 
         # include_mcp=False
-        # First, find if there are any MCP tools to test the filter
-        mcp_tools = [t for t in PORTED_TOOLS if 'mcp' in t.name.lower() or 'mcp' in t.source_hint.lower()]
-        if mcp_tools:
-            no_mcp_tools = get_tools(include_mcp=False)
-            self.assertTrue(len(no_mcp_tools) < len(PORTED_TOOLS))
-            for tool in no_mcp_tools:
-                self.assertNotIn('mcp', tool.name.lower())
-                self.assertNotIn('mcp', tool.source_hint.lower())
+        no_mcp_tools = get_tools(include_mcp=False)
+        self.assertEqual(len(no_mcp_tools), 2)
+        no_mcp_names = {tool.name for tool in no_mcp_tools}
+        self.assertEqual(no_mcp_names, {"BashTool", "OtherTool"})
 
         # With permission context
-        if len(PORTED_TOOLS) > 0:
-            deny_name = PORTED_TOOLS[0].name
-            context = ToolPermissionContext.from_iterables(deny_names=[deny_name])
-            filtered = get_tools(permission_context=context)
-            self.assertNotIn(PORTED_TOOLS[0], filtered)
+        context = ToolPermissionContext.from_iterables(deny_names=["BashTool"])
+        filtered = get_tools(permission_context=context)
+        filtered_names = {tool.name for tool in filtered}
+        self.assertNotIn("BashTool", filtered_names)
+        self.assertEqual(len(filtered_names), len(PORTED_TOOLS) - 1)
 
+    @patch(
+        "src.tools.PORTED_TOOLS",
+        new=tuple(
+            [
+                PortingModule(
+                    name="BashTool",
+                    responsibility="Run bash commands",
+                    source_hint="bash.py",
+                    status="mirrored",
+                ),
+                PortingModule(
+                    name="FileReadTool",
+                    responsibility="Read files",
+                    source_hint="file_read.py",
+                    status="mirrored",
+                ),
+                PortingModule(
+                    name="SomeBashTool",
+                    responsibility="Run more bash",
+                    source_hint="some_bash.py",
+                    status="mirrored",
+                ),
+            ]
+        ),
+    )
     def test_find_tools(self) -> None:
-        if not PORTED_TOOLS:
-            self.skipTest("No tools available in snapshot")
+        from src.tools import PORTED_TOOLS
 
         tool = PORTED_TOOLS[0]
-        # Find by name
-        matches = find_tools(tool.name)
+
+        # Find by exact name (case-insensitive)
+        matches = find_tools("bashtool")
         self.assertIn(tool, matches)
+        self.assertEqual(len(matches), 2)  # BashTool and SomeBashTool
+
+        # Find by partial name
+        matches = find_tools("bash")
+        self.assertEqual(len(matches), 2)
 
         # Find by source_hint
-        matches = find_tools(tool.source_hint)
-        self.assertIn(tool, matches)
+        matches = find_tools("file_read")
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0].name, "FileReadTool")
 
         # Limit
-        limit = 2
-        matches = find_tools("", limit=limit)
-        self.assertLessEqual(len(matches), limit)
+        limit = 1
+        matches = find_tools("bash", limit=limit)
+        self.assertEqual(len(matches), limit)
+        self.assertEqual(matches[0].name, "BashTool")
 
+    @patch(
+        "src.tools.PORTED_TOOLS",
+        new=tuple(
+            [
+                PortingModule(
+                    name="BashTool",
+                    responsibility="Run bash commands",
+                    source_hint="bash.py",
+                    status="mirrored",
+                ),
+            ]
+        ),
+    )
     def test_execute_tool(self) -> None:
-        if not PORTED_TOOLS:
-            self.skipTest("No tools available in snapshot")
+        from src.tools import PORTED_TOOLS
 
         tool = PORTED_TOOLS[0]
+
         # Success
         execution = execute_tool(tool.name, "test payload")
         self.assertTrue(execution.handled)
@@ -132,19 +251,41 @@ class TestTools(unittest.TestCase):
         self.assertEqual(execution.name, unknown_name)
         self.assertIn(f"Unknown mirrored tool: {unknown_name}", execution.message)
 
+    @patch(
+        "src.tools.PORTED_TOOLS",
+        new=tuple(
+            [
+                PortingModule(
+                    name="BashTool",
+                    responsibility="Run bash commands",
+                    source_hint="bash.py",
+                    status="mirrored",
+                ),
+                PortingModule(
+                    name="FileReadTool",
+                    responsibility="Read files",
+                    source_hint="file_read.py",
+                    status="mirrored",
+                ),
+            ]
+        ),
+    )
     def test_render_tool_index(self) -> None:
+        from src.tools import PORTED_TOOLS
+
         # No query
         output = render_tool_index(limit=5)
         self.assertIn(f"Tool entries: {len(PORTED_TOOLS)}", output)
+        self.assertIn("BashTool", output)
+        self.assertIn("FileReadTool", output)
 
         # With query
-        if not PORTED_TOOLS:
-            self.skipTest("No tools available in snapshot")
-
         tool = PORTED_TOOLS[0]
         output = render_tool_index(query=tool.name)
         self.assertIn(f"Filtered by: {tool.name}", output)
         self.assertIn(tool.name, output)
+        self.assertNotIn("FileReadTool", output)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
