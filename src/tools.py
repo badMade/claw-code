@@ -59,8 +59,10 @@ def _get_tool_lookup() -> Mapping[str, PortingModule]:
     return MappingProxyType(lookup)
 
 
-def get_tool(name: str) -> PortingModule | None:
-    return _get_tool_lookup().get(name.lower())
+def get_tool(name: str | None) -> PortingModule | None:
+    if not name or not name.strip():
+        return None
+    return _get_tool_lookup().get(name.lower().strip())
 
 
 def filter_tools_by_permission_context(
