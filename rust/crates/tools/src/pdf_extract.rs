@@ -471,6 +471,21 @@ mod tests {
     }
 
     #[test]
+    fn returns_error_for_non_existent_file() {
+        // given
+        let non_existent_path =
+            std::path::Path::new("/this/file/definitely/does/not/exist_12345.pdf");
+
+        // when
+        let result = extract_text(non_existent_path);
+
+        // then
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.starts_with("failed to read PDF:"));
+    }
+
+    #[test]
     fn returns_empty_for_non_pdf_data() {
         // given
         let data = b"This is not a PDF file at all";
