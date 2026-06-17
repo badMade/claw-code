@@ -1,5 +1,12 @@
 from __future__ import annotations
 
-from .task import PortingTask
+from dataclasses import dataclass
 
-__all__ = ['PortingTask']
+
+@dataclass(frozen=True)
+class PortingTask:
+    name: str
+    description: str
+
+
+__all__ = ["PortingTask"]
