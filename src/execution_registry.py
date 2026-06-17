@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import functools
+from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from .commands import PORTED_COMMANDS, execute_command
 from .tools import PORTED_TOOLS, execute_tool
@@ -29,23 +32,38 @@ class ExecutionRegistry:
     commands: tuple[MirroredCommand, ...]
     tools: tuple[MirroredTool, ...]
 
-    def command(self, name: str) -> MirroredCommand | None:
-        lowered = name.lower()
+    @functools.cached_property
+    def _command_lookup(self) -> Mapping[str, MirroredCommand]:
+        lookup: dict[str, MirroredCommand] = {}
         for command in self.commands:
-            if command.name.lower() == lowered:
-                return command
-        return None
+            lowered = command.name.lower()
+            if lowered not in lookup:
+                lookup[lowered] = command
+        return MappingProxyType(lookup)
+
+    def command(self, name: str) -> MirroredCommand | None:
+        return self._command_lookup.get(name.lower())
+
+    @functools.cached_property
+    def _tool_lookup(self) -> Mapping[str, MirroredTool]:
+        lookup: dict[str, MirroredTool] = {}
+        for tool in self.tools:
+            lowered = tool.name.lower()
+            if lowered not in lookup:
+                lookup[lowered] = tool
+        return MappingProxyType(lookup)
 
     def tool(self, name: str) -> MirroredTool | None:
-        lowered = name.lower()
-        for tool in self.tools:
-            if tool.name.lower() == lowered:
-                return tool
-        return None
+        return self._tool_lookup.get(name.lower())
 
 
 def build_execution_registry() -> ExecutionRegistry:
     return ExecutionRegistry(
-        commands=tuple(MirroredCommand(module.name, module.source_hint) for module in PORTED_COMMANDS),
-        tools=tuple(MirroredTool(module.name, module.source_hint) for module in PORTED_TOOLS),
+        commands=tuple(
+            MirroredCommand(module.name, module.source_hint)
+            for module in PORTED_COMMANDS
+        ),
+        tools=tuple(
+            MirroredTool(module.name, module.source_hint) for module in PORTED_TOOLS
+        ),
     )
