@@ -354,4 +354,16 @@ mod tests {
         assert!(names.contains(&"AgentTool"));
         assert!(names.contains(&"BashTool"));
     }
+
+    #[test]
+    fn extract_manifest_returns_error_for_non_existent_paths() {
+        let nonexistent = std::env::temp_dir().join(format!(
+            "compat_harness_test_{}_{}",
+            std::process::id(),
+            "nonexistent"
+        ));
+        let paths = UpstreamPaths::from_repo_root(nonexistent);
+        let result = extract_manifest(&paths);
+        assert!(matches!(result, Err(ref e) if e.kind() == std::io::ErrorKind::NotFound));
+    }
 }
