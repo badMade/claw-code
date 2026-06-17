@@ -87,22 +87,13 @@ def get_tools(
             if module.name in {"BashTool", "FileReadTool", "FileEditTool"}
         ]
     if not include_mcp:
-        tools = [
-            module
-            for module in tools
-            if "mcp" not in module.name.lower()
-            and "mcp" not in module.source_hint.lower()
-        ]
+        tools = [module for module in tools if "mcp" not in module.name_source_search_text]
     return filter_tools_by_permission_context(tuple(tools), permission_context)
 
 
 def find_tools(query: str, limit: int = 20) -> list[PortingModule]:
     needle = query.lower()
-    matches = [
-        module
-        for module in PORTED_TOOLS
-        if needle in module.name.lower() or needle in module.source_hint.lower()
-    ]
+    matches = [module for module in PORTED_TOOLS if needle in module.name_source_search_text]
     return matches[:limit]
 
 

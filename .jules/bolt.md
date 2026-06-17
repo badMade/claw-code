@@ -4,3 +4,8 @@
 ## 2026-04-29 - Python Dictionary Lookup Optimization for Lists
 **Learning:** O(N) linear scans on static lists inside frequently called functions (e.g., `get_tool`) are a performance hazard. A `lru_cache(maxsize=1)` dictionary lookup wrapped in `MappingProxyType` to prevent modification is a simple and extremely effective optimization technique that reduces complexity from O(N) to O(1) and eliminates repeated loop and string allocations. We must be mindful when mapping non-unique elements. Preserving first-match behavior requires `if key not in lookup:` during the dictionary's initial lazy-loading map phase.
 **Action:** Always favor lazily initialized cached dictionary lookups over list iteration when retrieving elements from static datasets by string keys.
+## 2024-05-18 - Avoid Redundant String Allocations in Search Filters
+
+When filtering lists of `PortingModule` objects (like tools and commands) based on string containment, avoid calling `.lower()` and concatenating strings inside loops.
+Choose the narrowest cached search surface that preserves the caller's semantics: `search_text` is appropriate for free-text ranking across name, source hint, and responsibility, while `name_source_search_text` should be used for command/tool name-and-path lookup and `source_search_text` should be used for source-path classification filters such as plugin, skill, or MCP inclusion.
+Using the right cached property inside list comprehensions prevents redundant string allocations without broadening field-specific filters into responsibility boilerplate matches.
