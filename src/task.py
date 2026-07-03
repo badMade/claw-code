@@ -1,5 +1,7 @@
 from __future__ import annotations
 
-from .task import PortingTask
 
-__all__ = ['PortingTask']
+class PortingTask:
+    def __init__(self, name: str, description: str):
+        self.name = name
+        self.description = description
