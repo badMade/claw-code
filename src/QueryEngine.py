@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from .query_engine import QueryEnginePort
 from .runtime import PortRuntime
 
