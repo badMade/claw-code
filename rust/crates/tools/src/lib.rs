@@ -210,7 +210,7 @@ impl GlobalToolRegistry {
             .collect::<Vec<_>>();
         let mut name_map = canonical_names
             .iter()
-            .map(|name| (normalize_tool_name(name), name.clone()))
+            .map(|name| (normalize_tool_name(name), name.as_str()))
             .collect::<BTreeMap<_, _>>();
 
         for (alias, canonical) in [
@@ -220,7 +220,7 @@ impl GlobalToolRegistry {
             ("glob", "glob_search"),
             ("grep", "grep_search"),
         ] {
-            name_map.insert(alias.to_string(), canonical.to_string());
+            name_map.insert(alias.to_string(), canonical);
         }
 
         let mut allowed = BTreeSet::new();
@@ -236,7 +236,7 @@ impl GlobalToolRegistry {
                         canonical_names.join(", ")
                     )
                 })?;
-                allowed.insert(canonical.clone());
+                allowed.insert(canonical.to_string());
             }
         }
 
