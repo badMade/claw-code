@@ -76,24 +76,24 @@ def main() -> int:
     print(f"PARITY source: {repo_root / 'PARITY.md'}")
     print()
 
+    out_lines = []
     for entry in manifest:
         scenario_name = entry["name"]
         scenario_report = report_by_name.get(scenario_name)
         status = "PASS" if scenario_report else ("MAPPED" if not should_run else "MISSING")
-        print(f"[{status}] {scenario_name} ({entry['category']})")
-        print(f"  description: {entry['description']}")
-        print(f"  parity refs: {' | '.join(entry['parity_refs'])}")
+
+        out_lines.append(f"[{status}] {scenario_name} ({entry['category']})")
+        out_lines.append(f"  description: {entry['description']}")
+        out_lines.append(f"  parity refs: {' | '.join(entry['parity_refs'])}")
+
         if scenario_report:
-            print(
-                "  result: iterations={iterations} requests={requests} tool_uses={tool_uses} tool_errors={tool_errors}".format(
-                    iterations=scenario_report["iterations"],
-                    requests=scenario_report["request_count"],
-                    tool_uses=", ".join(scenario_report["tool_uses"]) or "none",
-                    tool_errors=scenario_report["tool_error_count"],
-                )
+            tool_uses = ", ".join(scenario_report["tool_uses"]) if scenario_report["tool_uses"] else "none"
+            out_lines.append(
+                f"  result: iterations={scenario_report['iterations']} requests={scenario_report['request_count']} tool_uses={tool_uses} tool_errors={scenario_report['tool_error_count']}"
             )
-            print(f"  final: {scenario_report['final_message']}")
-        print()
+            out_lines.append(f"  final: {scenario_report['final_message']}")
+        out_lines.append("")
+    print("\n".join(out_lines))
 
     coverage = defaultdict(list)
     for entry in manifest:
