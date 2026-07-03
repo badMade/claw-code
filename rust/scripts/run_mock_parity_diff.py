@@ -97,8 +97,9 @@ def main() -> int:
 
     coverage = defaultdict(list)
     for entry in manifest:
+        name = entry["name"]
         for ref in entry["parity_refs"]:
-            coverage[ref].append(entry["name"])
+            coverage[ref].append(name)
 
     print("PARITY coverage map")
     for ref, scenarios in coverage.items():
