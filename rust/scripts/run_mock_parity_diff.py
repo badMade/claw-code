@@ -20,9 +20,15 @@ def load_parity_text(path: Path) -> str:
 
 def ensure_refs_exist(manifest: list[dict], parity_text: str) -> list[tuple[str, str]]:
     missing: list[tuple[str, str]] = []
+    unique_refs = {ref for entry in manifest for ref in entry.get("parity_refs", [])}
+    missing_refs = {ref for ref in unique_refs if ref not in parity_text}
+
+    if not missing_refs:
+        return missing
+
     for entry in manifest:
         for ref in entry.get("parity_refs", []):
-            if ref not in parity_text:
+            if ref in missing_refs:
                 missing.append((entry["name"], ref))
     return missing
 
