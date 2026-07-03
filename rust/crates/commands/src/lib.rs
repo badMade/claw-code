@@ -2361,6 +2361,7 @@ pub fn resolve_skill_invocation(
     Ok(dispatch)
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn resolve_skill_path(cwd: &Path, skill: &str) -> std::io::Result<PathBuf> {
     let requested = skill.trim().trim_start_matches('/').trim_start_matches('$');
     if requested.is_empty() {
@@ -2371,6 +2372,52 @@ pub fn resolve_skill_path(cwd: &Path, skill: &str) -> std::io::Result<PathBuf> {
     }
 
     let roots = discover_skill_roots(cwd);
+    for root in &roots {
+        match root.origin {
+            SkillOrigin::SkillsDir => {
+                let fast_dir = root.path.join(requested);
+                if fast_dir.is_dir() {
+                    let skill_path = fast_dir.join("SKILL.md");
+                    if skill_path.is_file() {
+                        if let Ok(contents) = fs::read_to_string(&skill_path) {
+                            let (name, _) = parse_skill_frontmatter(&contents);
+                            let skill_name = name.unwrap_or_else(|| requested.to_string());
+                            if skill_name.eq_ignore_ascii_case(requested) {
+                                return Ok(skill_path);
+                            }
+                        }
+                    }
+                }
+            }
+            SkillOrigin::LegacyCommandsDir => {
+                let fast_dir = root.path.join(requested);
+                if fast_dir.is_dir() {
+                    let skill_path = fast_dir.join("SKILL.md");
+                    if skill_path.is_file() {
+                        if let Ok(contents) = fs::read_to_string(&skill_path) {
+                            let (name, _) = parse_skill_frontmatter(&contents);
+                            let skill_name = name.unwrap_or_else(|| requested.to_string());
+                            if skill_name.eq_ignore_ascii_case(requested) {
+                                return Ok(skill_path);
+                            }
+                        }
+                    }
+                }
+
+                let fast_file = root.path.join(format!("{requested}.md"));
+                if fast_file.is_file() {
+                    if let Ok(contents) = fs::read_to_string(&fast_file) {
+                        let (name, _) = parse_skill_frontmatter(&contents);
+                        let skill_name = name.unwrap_or_else(|| requested.to_string());
+                        if skill_name.eq_ignore_ascii_case(requested) {
+                            return Ok(fast_file);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     for root in &roots {
         let mut entries = Vec::new();
         for entry in fs::read_dir(&root.path)? {
