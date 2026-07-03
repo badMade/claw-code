@@ -4069,14 +4069,64 @@ mod tests {
             .to_string()
     }
 
-    #[allow(clippy::too_many_lines)]
     #[test]
-    fn parses_supported_slash_commands() {
+    fn parses_basic_slash_commands() {
         assert_eq!(SlashCommand::parse("/help"), Ok(Some(SlashCommand::Help)));
         assert_eq!(
             SlashCommand::parse(" /status "),
             Ok(Some(SlashCommand::Status))
         );
+        assert_eq!(
+            SlashCommand::parse("/clear"),
+            Ok(Some(SlashCommand::Clear { confirm: false }))
+        );
+        assert_eq!(
+            SlashCommand::parse("/clear --confirm"),
+            Ok(Some(SlashCommand::Clear { confirm: true }))
+        );
+        assert_eq!(SlashCommand::parse("/cost"), Ok(Some(SlashCommand::Cost)));
+        assert_eq!(
+            SlashCommand::parse("/version"),
+            Ok(Some(SlashCommand::Version))
+        );
+    }
+
+    #[test]
+    fn parses_session_slash_commands() {
+        assert_eq!(
+            SlashCommand::parse("/resume session.json"),
+            Ok(Some(SlashCommand::Resume {
+                session_path: Some("session.json".to_string()),
+            }))
+        );
+        assert_eq!(
+            SlashCommand::parse("/session switch abc123"),
+            Ok(Some(SlashCommand::Session {
+                action: Some("switch".to_string()),
+                target: Some("abc123".to_string())
+            }))
+        );
+        assert_eq!(
+            SlashCommand::parse("/session fork incident-review"),
+            Ok(Some(SlashCommand::Session {
+                action: Some("fork".to_string()),
+                target: Some("incident-review".to_string())
+            }))
+        );
+        assert_eq!(
+            SlashCommand::parse("/export notes.txt"),
+            Ok(Some(SlashCommand::Export {
+                path: Some("notes.txt".to_string())
+            }))
+        );
+        assert_eq!(
+            SlashCommand::parse("/memory"),
+            Ok(Some(SlashCommand::Memory))
+        );
+    }
+
+    #[test]
+    fn parses_development_slash_commands() {
         assert_eq!(
             SlashCommand::parse("/sandbox"),
             Ok(Some(SlashCommand::Sandbox))
@@ -4115,48 +4165,15 @@ mod tests {
                 target: Some("conversation.rs".to_string())
             }))
         );
+        assert_eq!(SlashCommand::parse("/diff"), Ok(Some(SlashCommand::Diff)));
         assert_eq!(
             SlashCommand::parse("/debug-tool-call"),
             Ok(Some(SlashCommand::DebugToolCall))
         );
-        assert_eq!(
-            SlashCommand::parse("/bughunter runtime"),
-            Ok(Some(SlashCommand::Bughunter {
-                scope: Some("runtime".to_string())
-            }))
-        );
-        assert_eq!(
-            SlashCommand::parse("/commit"),
-            Ok(Some(SlashCommand::Commit))
-        );
-        assert_eq!(
-            SlashCommand::parse("/pr ready for review"),
-            Ok(Some(SlashCommand::Pr {
-                context: Some("ready for review".to_string())
-            }))
-        );
-        assert_eq!(
-            SlashCommand::parse("/issue flaky test"),
-            Ok(Some(SlashCommand::Issue {
-                context: Some("flaky test".to_string())
-            }))
-        );
-        assert_eq!(
-            SlashCommand::parse("/ultraplan ship both features"),
-            Ok(Some(SlashCommand::Ultraplan {
-                task: Some("ship both features".to_string())
-            }))
-        );
-        assert_eq!(
-            SlashCommand::parse("/teleport conversation.rs"),
-            Ok(Some(SlashCommand::Teleport {
-                target: Some("conversation.rs".to_string())
-            }))
-        );
-        assert_eq!(
-            SlashCommand::parse("/debug-tool-call"),
-            Ok(Some(SlashCommand::DebugToolCall))
-        );
+    }
+
+    #[test]
+    fn parses_configuration_slash_commands() {
         assert_eq!(
             SlashCommand::parse("/model claude-opus"),
             Ok(Some(SlashCommand::Model {
@@ -4174,21 +4191,6 @@ mod tests {
             }))
         );
         assert_eq!(
-            SlashCommand::parse("/clear"),
-            Ok(Some(SlashCommand::Clear { confirm: false }))
-        );
-        assert_eq!(
-            SlashCommand::parse("/clear --confirm"),
-            Ok(Some(SlashCommand::Clear { confirm: true }))
-        );
-        assert_eq!(SlashCommand::parse("/cost"), Ok(Some(SlashCommand::Cost)));
-        assert_eq!(
-            SlashCommand::parse("/resume session.json"),
-            Ok(Some(SlashCommand::Resume {
-                session_path: Some("session.json".to_string()),
-            }))
-        );
-        assert_eq!(
             SlashCommand::parse("/config"),
             Ok(Some(SlashCommand::Config { section: None }))
         );
@@ -4198,6 +4200,11 @@ mod tests {
                 section: Some("env".to_string())
             }))
         );
+        assert_eq!(SlashCommand::parse("/init"), Ok(Some(SlashCommand::Init)));
+    }
+
+    #[test]
+    fn parses_extension_slash_commands() {
         assert_eq!(
             SlashCommand::parse("/mcp"),
             Ok(Some(SlashCommand::Mcp {
@@ -4210,29 +4217,6 @@ mod tests {
             Ok(Some(SlashCommand::Mcp {
                 action: Some("show".to_string()),
                 target: Some("remote".to_string())
-            }))
-        );
-        assert_eq!(
-            SlashCommand::parse("/memory"),
-            Ok(Some(SlashCommand::Memory))
-        );
-        assert_eq!(SlashCommand::parse("/init"), Ok(Some(SlashCommand::Init)));
-        assert_eq!(SlashCommand::parse("/diff"), Ok(Some(SlashCommand::Diff)));
-        assert_eq!(
-            SlashCommand::parse("/version"),
-            Ok(Some(SlashCommand::Version))
-        );
-        assert_eq!(
-            SlashCommand::parse("/export notes.txt"),
-            Ok(Some(SlashCommand::Export {
-                path: Some("notes.txt".to_string())
-            }))
-        );
-        assert_eq!(
-            SlashCommand::parse("/session switch abc123"),
-            Ok(Some(SlashCommand::Session {
-                action: Some("switch".to_string()),
-                target: Some("abc123".to_string())
             }))
         );
         assert_eq!(
@@ -4257,12 +4241,6 @@ mod tests {
             }))
         );
         assert_eq!(
-            SlashCommand::parse("/skills install ./fixtures/help-skill"),
-            Ok(Some(SlashCommand::Skills {
-                args: Some("install ./fixtures/help-skill".to_string())
-            }))
-        );
-        assert_eq!(
             SlashCommand::parse("/plugins disable demo"),
             Ok(Some(SlashCommand::Plugins {
                 action: Some("disable".to_string()),
@@ -4270,10 +4248,9 @@ mod tests {
             }))
         );
         assert_eq!(
-            SlashCommand::parse("/session fork incident-review"),
-            Ok(Some(SlashCommand::Session {
-                action: Some("fork".to_string()),
-                target: Some("incident-review".to_string())
+            SlashCommand::parse("/skills install ./fixtures/help-skill"),
+            Ok(Some(SlashCommand::Skills {
+                args: Some("install ./fixtures/help-skill".to_string())
             }))
         );
     }
