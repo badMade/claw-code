@@ -26,13 +26,15 @@ FORBIDDEN = {
     r'assets/instructkr\.png': 'remove stale instructkr image references',
 }
 
+COMPILED_FORBIDDEN = {re.compile(k): v for k, v in FORBIDDEN.items()}
+
 errors: list[str] = []
 for path in FILES:
     if not path.exists():
         continue
     text = path.read_text(encoding='utf-8')
-    for pattern, message in FORBIDDEN.items():
-        for match in re.finditer(pattern, text):
+    for pattern, message in COMPILED_FORBIDDEN.items():
+        for match in pattern.finditer(text):
             line = text.count('\n', 0, match.start()) + 1
             errors.append(f'{path.relative_to(ROOT)}:{line}: {message}')
 
