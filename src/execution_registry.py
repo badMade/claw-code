@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 
 from .commands import PORTED_COMMANDS, execute_command
@@ -29,20 +30,23 @@ class ExecutionRegistry:
     commands: tuple[MirroredCommand, ...]
     tools: tuple[MirroredTool, ...]
 
+    # ⚡ Bolt Optimization: Cache the command dictionary map for O(1) lookups.
+    # Why: Avoids O(N) linear list search for every command lookup. Iterating in reverse preserves first-match precedence.
+    @functools.cached_property
+    def _command_map(self) -> dict[str, MirroredCommand]:
+        return {cmd.name.lower(): cmd for cmd in reversed(self.commands)}
+
+    # ⚡ Bolt Optimization: Cache the tool dictionary map for O(1) lookups.
+    # Why: Avoids O(N) linear list search for every tool lookup. Iterating in reverse preserves first-match precedence.
+    @functools.cached_property
+    def _tool_map(self) -> dict[str, MirroredTool]:
+        return {tool.name.lower(): tool for tool in reversed(self.tools)}
+
     def command(self, name: str) -> MirroredCommand | None:
-        lowered = name.lower()
-        for command in self.commands:
-            if command.name.lower() == lowered:
-                return command
-        return None
+        return self._command_map.get(name.lower())
 
     def tool(self, name: str) -> MirroredTool | None:
-        lowered = name.lower()
-        for tool in self.tools:
-            if tool.name.lower() == lowered:
-                return tool
-        return None
-
+        return self._tool_map.get(name.lower())
 
 def build_execution_registry() -> ExecutionRegistry:
     return ExecutionRegistry(
