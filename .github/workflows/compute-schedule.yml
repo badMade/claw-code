@@ -1,0 +1,87 @@
+name: Self-Heal Schedule Computation
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # AUTO-UPDATED # Default fallback, normally auto-updated based on telemetry
+  workflow_dispatch:
+
+concurrency:
+  group: compute-schedule-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  compute:
+    name: Compute Optimal Self-Heal Schedule
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install ruamel.yaml
+
+      - name: Compute New Schedule
+        id: compute
+        run: |
+          python3 scripts/compute_schedule.py
+
+      - name: Update Workflow with New Schedule
+        id: update_wf
+        if: steps.compute.outputs.changed == 'true'
+        run: |
+          # The self-heal workflow needs its cron trigger updated if the schedule changed.
+          # The '# AUTO-UPDATED' marker helps anchor the substitution.
+          NEW_SCHED="${{ steps.compute.outputs.new_schedule }}"
+          sed -i "s/cron: '.*' # AUTO-UPDATED/cron: '$NEW_SCHED' # AUTO-UPDATED/" .github/workflows/self-heal.yml
+
+          # Also update this very workflow to match the new schedule cadence
+          sed -i "s/cron: '.*' # AUTO-UPDATED/cron: '$NEW_SCHED' # AUTO-UPDATED/" .github/workflows/compute-schedule.yml || true
+
+      - name: Check for Uncommitted Changes
+        id: git_status
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_diff=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_diff=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.compute.outputs.changed == 'true' && steps.git_status.outputs.has_diff == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Avoid thrashing if an open schedule update PR exists
+          RECENT_PRS=$(gh pr list --label self-heal-schedule --state open --json createdAt --jq 'length')
+          if [ "$RECENT_PRS" -gt 0 ]; then
+            echo "Open schedule PR already exists. Exiting."
+            exit 0
+          fi
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH_NAME="selfheal-schedule-$(date +%s)"
+          git checkout -b "$BRANCH_NAME"
+          git add .
+          git commit -m "Update self-heal schedule based on telemetry"
+          git push origin "$BRANCH_NAME"
+
+          gh pr create --title "[Self-Heal Schedule] Update cadence" \
+                       --body "Automated update to the self-heal schedule based on recent repository activity." \
+                       --label "automation,self-heal-schedule" \
+                       --base main

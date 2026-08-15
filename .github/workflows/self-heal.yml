@@ -1,0 +1,143 @@
+name: Self-Heal Auto-Repair
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # AUTO-UPDATED
+  workflow_run:
+    workflows: ["ci"]
+    types:
+      - completed
+  workflow_dispatch:
+
+concurrency:
+  group: selfheal-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  repair:
+    name: Repair Codebase Drift
+    if: >
+      github.ref_name == 'main' &&
+      !startsWith(github.ref_name, 'selfheal-') &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-dev.txt || true
+          pip install ruamel.yaml
+
+      - name: Pre-Repair Healthcheck
+        id: pre
+        run: |
+          python3 scripts/healthcheck.py || exit 0
+
+      - name: Run Self-Heal Repair
+        id: heal
+        run: |
+          python3 scripts/self_heal.py || true
+
+      - name: Post-Repair Healthcheck
+        id: post
+        run: |
+          python3 scripts/healthcheck.py
+
+      - name: Check for Uncommitted Changes
+        id: git_status
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_diff=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_diff=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.post.outcome == 'success' && steps.git_status.outputs.has_diff == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Cleanup stale selfheal PRs
+          gh pr list --label self-heal --state open --search \"updated:<$(date -d '-7 days' +%Y-%m-%d)\" --json number | jq -r '.[].number' | xargs -I {} gh pr close {} --delete-branch || true
+
+          # Avoid duplicate PRs
+          RECENT_PRS=$(gh pr list --label self-heal --state open --json createdAt --jq 'length')
+          if [ "$RECENT_PRS" -gt 0 ]; then
+            echo "Open selfheal PR already exists. Exiting."
+            exit 0
+          fi
+
+          # Determine trigger reason and title
+          TRIGGER_REASON="${{ github.event_name }}"
+          if [ "$TRIGGER_REASON" = "schedule" ]; then
+            PR_TITLE="[Self-Heal Scheduled] Drift fixes"
+          elif [ "$TRIGGER_REASON" = "workflow_run" ]; then
+            PR_TITLE="[Self-Heal Reactive] CI fix"
+          else
+            PR_TITLE="[Self-Heal Manual] Repair"
+          fi
+
+          # Create branch and commit
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH_NAME="selfheal-$(date +%s)"
+          git checkout -b "$BRANCH_NAME"
+          git add .
+
+          # Scan for secrets/PII - rough heuristic
+          if git diff --cached | grep -iE "(api_key|secret|token|password|credential|Bearer )"; then
+            echo "Potential secrets detected in diff. Aborting."
+            exit 1
+          fi
+
+          # Restrict file modifications
+          git diff --name-only --cached | while IFS= read -r file; do
+             if [[ ! "$file" =~ ^(src/|tests/|scripts/|rust/|requirements.*\.txt|package\.json|go\.sum|Cargo\.toml|Cargo\.lock) ]]; then
+                 echo "Restricted file modified (outside allowed paths): $file. Aborting."
+                 exit 1
+             fi
+             if [[ "$file" == .github/workflows/ci.yml ]] || [[ "$file" == .env ]] || [[ "$file" == secrets/* ]] || [[ "$file" == src/**/migrations/* ]]; then
+                 echo "Restricted file modified: $file. Aborting."
+                 exit 1
+             fi
+          done
+          git commit -m "Auto-repair codebase drift ($TRIGGER_REASON)"
+
+          # Push and create PR
+          git push origin "$BRANCH_NAME"
+          gh pr create --title "$PR_TITLE" \
+                       --body "Automated self-heal repair triggered by $TRIGGER_REASON.
+
+See the workflow run for logs: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+Link back to this chat: (assume linked)
+
+Current Schedule Rationale: See `.github/self-heal-schedule.yml`
+
+Please review the changes carefully." \
+                       --label "automation,self-heal" \
+                       --base main
