@@ -20,10 +20,22 @@ def load_parity_text(path: Path) -> str:
 
 def ensure_refs_exist(manifest: list[dict], parity_text: str) -> list[tuple[str, str]]:
     missing: list[tuple[str, str]] = []
+    # Optimization: Deduplicate the search targets (references) into a set to minimize redundant expensive text searches
+    known_valid = set()
+    known_invalid = set()
     for entry in manifest:
         for ref in entry.get("parity_refs", []):
-            if ref not in parity_text:
+            if ref in known_valid:
+                continue
+            if ref in known_invalid:
                 missing.append((entry["name"], ref))
+                continue
+
+            if ref not in parity_text:
+                known_invalid.add(ref)
+                missing.append((entry["name"], ref))
+            else:
+                known_valid.add(ref)
     return missing
 
 
